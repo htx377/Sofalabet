@@ -1,0 +1,6 @@
+{
+  "name": "SofalaBet",
+  "description": "Plataforma oficial de apostas desportivas para futebol moçambicano (Moçambola, Provinciais e Distritais) em MZN, com boletim de apostas inteligente, liquidação atómica e gestão administrativa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

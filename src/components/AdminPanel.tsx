@@ -1,0 +1,1326 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Match,
+  User,
+  AuditLog,
+  Competition,
+  DashboardStats,
+  Bet,
+  WalletTransaction,
+} from '../types.ts';
+import { api } from '../api.ts';
+import { AdjustBalanceModal } from './AdjustBalanceModal.tsx';
+import { UserDetailModal } from './UserDetailModal.tsx';
+import {
+  Shield,
+  Plus,
+  Edit2,
+  CheckCircle,
+  AlertTriangle,
+  Users,
+  Trophy,
+  History,
+  Lock,
+  Unlock,
+  DollarSign,
+  FileText,
+  RefreshCw,
+  X,
+  Calendar,
+  Clock,
+  ArrowLeft,
+  Eye,
+  Trash2,
+  Key,
+  Search,
+} from 'lucide-react';
+
+interface AdminPanelProps {
+  onBackToSportsbook?: () => void;
+}
+
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'matches' | 'results' | 'users' | 'bets' | 'transactions' | 'audit'>('overview');
+
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [bets, setBets] = useState<Bet[]>([]);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Modals
+  const [showCreateMatch, setShowCreateMatch] = useState(false);
+  const [showOddsModal, setShowOddsModal] = useState<Match | null>(null);
+  const [showResultModal, setShowResultModal] = useState<Match | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState<Match | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState<User | null>(null);
+  const [showUserDetailModal, setShowUserDetailModal] = useState<User | null>(null);
+
+  // Filter states
+  const [userFilter, setUserFilter] = useState<'ALL' | 'USER' | 'ADMIN' | 'BLOCKED' | 'ACTIVE'>('ALL');
+  const [txSearch, setTxSearch] = useState('');
+
+  // Form states: Create Match
+  const [newCompetitionId, setNewCompetitionId] = useState('comp-mocambola');
+  const [newHomeTeam, setNewHomeTeam] = useState('');
+  const [newAwayTeam, setNewAwayTeam] = useState('');
+  const [newKickoffDate, setNewKickoffDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newKickoffTime, setNewKickoffTime] = useState('18:00');
+  const [newOddHome, setNewOddHome] = useState('2.00');
+  const [newOddDraw, setNewOddDraw] = useState('3.10');
+  const [newOddAway, setNewOddAway] = useState('3.50');
+  const [newStatus, setNewStatus] = useState<'DRAFT' | 'OPEN'>('OPEN');
+  const [newDescription, setNewDescription] = useState('');
+
+  // Form states: Edit Odds
+  const [editHome, setEditHome] = useState('2.00');
+  const [editDraw, setEditDraw] = useState('3.00');
+  const [editAway, setEditAway] = useState('3.00');
+
+  // Form states: Settle Result
+  const [homeScore, setHomeScore] = useState<number>(0);
+  const [awayScore, setAwayScore] = useState<number>(0);
+
+  // Form states: Cancel Match
+  const [cancelReason, setCancelReason] = useState('Condições meteorológicas adversas');
+
+  // Form states: Adjust Balance
+  const [adjustAmount, setAdjustAmount] = useState<number>(100);
+  const [adjustReason, setAdjustReason] = useState('Bonificação / Ajuste manual de teste');
+
+  // User search
+  const [userSearch, setUserSearch] = useState('');
+
+  const loadData = async () => {
+    setLoading(true);
+    setActionError(null);
+    try {
+      const [dashRes, matchRes, compRes, userRes, auditRes, betsRes, txRes] = await Promise.all([
+        api.getAdminDashboard(),
+        api.getMatches(),
+        api.getCompetitions(),
+        api.getUsers(),
+        api.getAdminAuditLogs(),
+        api.getAdminBets(),
+        api.getAdminTransactions(),
+      ]);
+
+      setStats(dashRes.stats);
+      setMatches(matchRes.matches);
+      setCompetitions(compRes.competitions);
+      setUsers(userRes.users);
+      setAuditLogs(auditRes.logs);
+      setBets(betsRes.bets);
+      setTransactions(txRes.transactions);
+    } catch (err: any) {
+      setActionError(err.message || 'Erro ao carregar dados do painel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const notifySuccess = (msg: string) => {
+    setActionSuccess(msg);
+    setTimeout(() => setActionSuccess(null), 4000);
+  };
+
+  const notifyError = (msg: string) => {
+    setActionError(msg);
+    setTimeout(() => setActionError(null), 4000);
+  };
+
+  // 1. Create Match Handler
+  const handleCreateMatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        competitionId: newCompetitionId,
+        homeTeam: newHomeTeam,
+        awayTeam: newAwayTeam,
+        kickoffDate: newKickoffDate,
+        kickoffTime: newKickoffTime,
+        status: newStatus,
+        description: newDescription,
+        odds: {
+          home: parseFloat(newOddHome),
+          draw: parseFloat(newOddDraw),
+          away: parseFloat(newOddAway),
+        },
+      };
+      await api.createMatch(payload);
+      setShowCreateMatch(false);
+      notifySuccess(`Jogo "${newHomeTeam} vs ${newAwayTeam}" criado com sucesso!`);
+      // Reset form
+      setNewHomeTeam('');
+      setNewAwayTeam('');
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao criar jogo');
+    }
+  };
+
+  // 2. Update Odds Handler
+  const handleUpdateOdds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showOddsModal) return;
+    try {
+      await api.updateOdds(showOddsModal.id, {
+        home: parseFloat(editHome),
+        draw: parseFloat(editDraw),
+        away: parseFloat(editAway),
+      });
+      setShowOddsModal(null);
+      notifySuccess('Odds do jogo atualizadas com sucesso!');
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao alterar odds');
+    }
+  };
+
+  // 3. Update Match Status
+  const handleStatusChange = async (matchId: string, status: string) => {
+    try {
+      await api.updateMatchStatus(matchId, status);
+      notifySuccess(`Estado do jogo alterado para ${status}`);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao alterar estado');
+    }
+  };
+
+  // 4. Settle Match Result
+  const handleSettleResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showResultModal) return;
+    try {
+      const res = await api.enterResult(showResultModal.id, homeScore, awayScore);
+      setShowResultModal(null);
+      notifySuccess(`Jogo liquidado com sucesso! Placar: ${homeScore} - ${awayScore}. Vencedores pagos: ${res.settlement.totalWonBets}.`);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao liquidar jogo');
+    }
+  };
+
+  // 5. Cancel Match
+  const handleCancelMatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showCancelModal) return;
+    try {
+      const res = await api.cancelMatch(showCancelModal.id, cancelReason);
+      setShowCancelModal(null);
+      notifySuccess(`Jogo cancelado com sucesso. ${res.result.voidedBetsCount} apostas foram anuladas (VOID) e reembolsadas.`);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao cancelar jogo');
+    }
+  };
+
+  // 6. Toggle User Block
+  const handleToggleBlock = async (userId: string) => {
+    try {
+      const res = await api.toggleUserBlock(userId);
+      notifySuccess(res.message);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao alterar bloqueio');
+    }
+  };
+
+  // 7. Adjust Balance
+  const handleDeleteMatch = async (matchId: string) => {
+    if (!window.confirm('Tem a certeza que deseja excluir permanentemente este jogo?')) return;
+    try {
+      const res = await api.deleteMatch(matchId);
+      notifySuccess(res.message);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao excluir jogo');
+    }
+  };
+
+  const handleChangeRole = async (userId: string, newRole: 'USER' | 'ADMIN') => {
+    try {
+      const res = await api.changeUserRole(userId, newRole);
+      notifySuccess(res.message);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao alterar função do utilizador');
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    const customPass = window.prompt('Introduza a nova senha temporária para o utilizador:', 'Sofala123!');
+    if (!customPass) return;
+    try {
+      const res = await api.resetUserPassword(userId, customPass);
+      notifySuccess(`Palavra-passe alterada com sucesso! Senha: "${res.tempPassword}"`);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao redefinir senha');
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch =
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.phone.includes(userSearch);
+
+    if (!matchesSearch) return false;
+
+    if (userFilter === 'USER') return u.role === 'USER';
+    if (userFilter === 'ADMIN') return u.role === 'ADMIN';
+    if (userFilter === 'BLOCKED') return u.isBlocked;
+    if (userFilter === 'ACTIVE') return !u.isBlocked;
+    return true;
+  });
+
+  const filteredTransactions = transactions.filter((tx) =>
+    tx.reference.toLowerCase().includes(txSearch.toLowerCase()) ||
+    tx.description.toLowerCase().includes(txSearch.toLowerCase()) ||
+    tx.userId.toLowerCase().includes(txSearch.toLowerCase())
+  );
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden text-white space-y-6">
+      
+      {/* Top Banner */}
+      <div className="p-4 sm:p-6 bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-white">Painel do Super Administrador</h1>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500 text-slate-950 shadow-sm">
+                CONTROLO TOTAL
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Gestão integral: criação de jogos, odds em tempo real, adição/dedução de saldo, bloqueio de contas e auditoria.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {onBackToSportsbook && (
+            <button
+              onClick={onBackToSportsbook}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Voltar ao Sportsbook</span>
+            </button>
+          )}
+          <button
+            id="admin-create-match-trigger"
+            onClick={() => setShowCreateMatch(true)}
+            className="px-3.5 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ CRIAR NOVO JOGO</span>
+          </button>
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors"
+            title="Atualizar dados"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="px-4 sm:px-6">
+        {actionSuccess && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{actionSuccess}</span>
+          </div>
+        )}
+        {actionError && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>{actionError}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation Subtabs */}
+      <div className="flex border-b border-slate-800 bg-slate-900/60 px-3 sm:px-6 overflow-x-auto scrollbar-none">
+        {[
+          { id: 'overview', label: 'Estatísticas Globais', icon: Trophy },
+          { id: 'matches', label: 'Gestão de Jogos & Odds', icon: Trophy },
+          { id: 'results', label: 'Resultados & Liquidação', icon: CheckCircle },
+          { id: 'users', label: 'Utilizadores & Saldos', icon: Users },
+          { id: 'bets', label: 'Apostas Globais', icon: History },
+          { id: 'transactions', label: 'Livro-Razão (Ledger)', icon: DollarSign },
+          { id: 'audit', label: 'Registo de Auditoria', icon: FileText },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-3 px-4 font-bold text-xs sm:text-sm border-b-2 whitespace-nowrap transition-all flex items-center gap-2 ${
+                activeTab === tab.id
+                  ? 'border-amber-500 text-amber-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ================= TAB 1: OVERVIEW ================= */}
+      {activeTab === 'overview' && stats && (
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-400 block">Total de Utilizadores</span>
+              <span className="text-2xl font-black text-white mt-1 block">{stats.totalUsers}</span>
+              <span className="text-[10px] text-emerald-400 mt-1 block">Apostadores registados</span>
+            </div>
+
+            <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-400 block">Jogos Activos / Abertos</span>
+              <span className="text-2xl font-black text-emerald-400 mt-1 block">{stats.activeMatches}</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">{stats.finishedMatches} jogos terminados</span>
+            </div>
+
+            <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-400 block">Volume Total Apostado</span>
+              <span className="text-2xl font-black text-cyan-400 mt-1 block">{stats.totalBetVolume.toFixed(2)} MZN</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">{stats.pendingBets} apostas pendentes</span>
+            </div>
+
+            <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-400 block">Total Pago em Prémios</span>
+              <span className="text-2xl font-black text-emerald-400 mt-1 block">{stats.totalDisbursedPayout.toFixed(2)} MZN</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">{stats.wonBets} apostas vencedoras</span>
+            </div>
+          </div>
+
+          {/* Quick instructions for administrator */}
+          <div className="bg-slate-800/40 border border-slate-700/80 rounded-2xl p-4 sm:p-5 space-y-2">
+            <h3 className="font-extrabold text-sm text-white">Manual Operacional do Administrador</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              1. <strong>Criação de Jogos:</strong> Clique em "+ CRIAR NOVO JOGO" e insira a competição, equipas, data, hora e odds 1X2.<br />
+              2. <strong>Alteração de Odds:</strong> As odds podem ser alteradas livremente na aba "Gestão de Jogos" enquanto o estado for <em>OPEN</em>. As apostas já efetuadas mantêm as odds congeladas do momento da aposta.<br />
+              3. <strong>Liquidação de Resultados:</strong> Na aba "Resultados & Liquidação", introduza os golos da equipa da casa e visitante. O motor calculará imediatamente as seleções vencedoras e creditará as carteiras dos apostadores no ledger de forma atómica.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 2: MATCHES MANAGEMENT ================= */}
+      {activeTab === 'matches' && (
+        <div className="p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-extrabold text-base text-white">Jogos Registados no Sistema ({matches.length})</h3>
+            <button
+              id="admin-create-match-inline-btn"
+              onClick={() => setShowCreateMatch(true)}
+              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl"
+            >
+              + Criar Jogo
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Campeonato</th>
+                  <th className="py-2.5 px-3">Confronto</th>
+                  <th className="py-2.5 px-3">Data / Hora</th>
+                  <th className="py-2.5 px-3 text-center">Odds (1 - X - 2)</th>
+                  <th className="py-2.5 px-3 text-center">Estado</th>
+                  <th className="py-2.5 px-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {matches.map((m) => {
+                  const mkt = m.markets.find((x) => x.type === '1X2');
+                  const h = mkt?.selections.find((s) => s.outcome === '1')?.odds;
+                  const d = mkt?.selections.find((s) => s.outcome === 'X')?.odds;
+                  const a = mkt?.selections.find((s) => s.outcome === '2')?.odds;
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-800/40">
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-white">{m.competitionName}</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                            m.competitionCategory === 'MOCAMBOLA' || m.competitionName.includes('Moçambola')
+                              ? 'text-emerald-400'
+                              : m.competitionCategory === 'PROVINCIAL' || m.competitionName.includes('Provincial')
+                              ? 'text-amber-400'
+                              : 'text-sky-400'
+                          }`}>
+                            {m.competitionCategory === 'MOCAMBOLA' || m.competitionName.includes('Moçambola')
+                              ? '• Nacional'
+                              : m.competitionCategory === 'PROVINCIAL' || m.competitionName.includes('Provincial')
+                              ? '• Provincial'
+                              : '• Distrital'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 font-bold text-white">
+                        {m.homeTeam} vs {m.awayTeam}
+                        {m.homeScore !== null && m.homeScore !== undefined && (
+                          <span className="ml-2 text-emerald-400 font-black">({m.homeScore} - {m.awayScore})</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                        {m.kickoffDate} {m.kickoffTime}
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono">
+                        <span className="text-emerald-400 font-bold">{h?.toFixed(2)}</span> /{' '}
+                        <span className="text-slate-300 font-bold">{d?.toFixed(2)}</span> /{' '}
+                        <span className="text-cyan-400 font-bold">{a?.toFixed(2)}</span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          m.status === 'OPEN'
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : m.status === 'FINISHED'
+                            ? 'bg-cyan-500/10 text-cyan-400'
+                            : m.status === 'SUSPENDED'
+                            ? 'bg-amber-500/10 text-amber-400'
+                            : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                          {m.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                        {m.status === 'OPEN' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowOddsModal(m);
+                                setEditHome(String(h || 2.0));
+                                setEditDraw(String(d || 3.0));
+                                setEditAway(String(a || 3.0));
+                              }}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 text-[11px] font-bold"
+                            >
+                              Odds
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(m.id, 'SUSPENDED')}
+                              className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 text-[11px] font-bold"
+                            >
+                              Suspender
+                            </button>
+                          </>
+                        )}
+                        {m.status === 'SUSPENDED' && (
+                          <button
+                            onClick={() => handleStatusChange(m.id, 'OPEN')}
+                            className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30 text-[11px] font-bold"
+                          >
+                            Reabrir
+                          </button>
+                        )}
+                        {m.status !== 'FINISHED' && m.status !== 'CANCELLED' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setShowResultModal(m);
+                                setHomeScore(0);
+                                setAwayScore(0);
+                              }}
+                              className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded border border-cyan-500/30 text-[11px] font-black"
+                            >
+                              Resultado
+                            </button>
+                            <button
+                              onClick={() => setShowCancelModal(m)}
+                              className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded border border-rose-500/30 text-[11px] font-bold"
+                            >
+                              Cancelar
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleDeleteMatch(m.id)}
+                          title="Excluir Jogo"
+                          className="p-1 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded border border-slate-700 hover:border-rose-500/30 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 3: RESULTS & SETTLEMENT ================= */}
+      {activeTab === 'results' && (
+        <div className="p-6 space-y-4">
+          <div>
+            <h3 className="font-extrabold text-base text-white">Introdução de Resultados & Liquidação de Prémios</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Introduza o resultado final oficial dos jogos para fechar o mercado e pagar automaticamente os vencedores.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {matches
+              .filter((m) => m.status !== 'FINISHED' && m.status !== 'CANCELLED')
+              .map((match) => (
+                <div key={match.id} className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-emerald-400 font-bold">{match.competitionName}</span>
+                    <span className="text-slate-400">{match.kickoffDate} {match.kickoffTime}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2 border-y border-slate-700/50">
+                    <span className="font-black text-sm text-white">{match.homeTeam}</span>
+                    <span className="text-xs font-bold text-slate-500">VS</span>
+                    <span className="font-black text-sm text-white">{match.awayTeam}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-slate-400">Estado: <strong className="text-emerald-400">{match.status}</strong></span>
+                    <button
+                      onClick={() => {
+                        setShowResultModal(match);
+                        setHomeScore(0);
+                        setAwayScore(0);
+                      }}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-emerald-500/20"
+                    >
+                      INSERIR RESULTADO FINAL
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: USERS MANAGEMENT (SUPER ADMIN) ================= */}
+      {activeTab === 'users' && (
+        <div className="p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-base text-white">Gestão Central de Utilizadores & Risco</h3>
+                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {users.length} Registados
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Controlo total: Adicionar saldo, bloquear/desbloquear, redefinir senhas, alterar funções e consultar extratos
+              </p>
+            </div>
+            
+            <div className="relative w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Pesquisar por nome, email ou telefone..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 w-full focus:outline-none focus:border-amber-500"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            </div>
+          </div>
+
+          {/* User Category Filter Chips */}
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-800">
+            {[
+              { id: 'ALL', label: `Todos (${users.length})` },
+              { id: 'USER', label: `Apostadores (${users.filter((u) => u.role === 'USER').length})` },
+              { id: 'ADMIN', label: `Super Admins (${users.filter((u) => u.role === 'ADMIN').length})` },
+              { id: 'ACTIVE', label: `Ativos (${users.filter((u) => !u.isBlocked).length})` },
+              { id: 'BLOCKED', label: `Bloqueados (${users.filter((u) => u.isBlocked).length})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setUserFilter(f.id as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                  userFilter === f.id
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm font-black'
+                    : 'bg-slate-800/80 text-slate-400 border-slate-700/60 hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Nome / Apostador</th>
+                  <th className="py-2.5 px-3">Email & Contacto</th>
+                  <th className="py-2.5 px-3">Função</th>
+                  <th className="py-2.5 px-3 text-right">Saldo (MZN)</th>
+                  <th className="py-2.5 px-3 text-center">Estado</th>
+                  <th className="py-2.5 px-3 text-right">Ações Rápidas (Super Admin)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {filteredUsers.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-800/40">
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-white text-sm">{u.name}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">ID: {u.id}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-400">
+                      <div className="text-white font-medium">{u.email}</div>
+                      <div className="text-[11px] text-slate-500">{u.phone}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        u.role === 'ADMIN' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {u.role === 'ADMIN' ? 'SUPER ADMIN' : 'APOSTADOR'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right font-black text-emerald-400 text-sm">
+                      {u.balance.toFixed(2)} MZN
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        u.isBlocked ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}>
+                        {u.isBlocked ? 'BLOQUEADO' : 'ATIVO'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                      {/* Add Balance */}
+                      <button
+                        onClick={() => setShowAdjustModal(u)}
+                        className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-lg border border-emerald-500/40 text-[11px] font-bold inline-flex items-center gap-1"
+                        title="Adicionar ou Deduzir Saldo"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>Saldo</span>
+                      </button>
+
+                      {/* Detailed inspection modal */}
+                      <button
+                        onClick={() => setShowUserDetailModal(u)}
+                        className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg border border-cyan-500/30 text-[11px] font-bold inline-flex items-center gap-1"
+                        title="Ver Ficha e Extrato Completo"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Ficha</span>
+                      </button>
+
+                      {/* Block / Unblock */}
+                      {u.role !== 'ADMIN' && (
+                        <button
+                          onClick={() => handleToggleBlock(u.id)}
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1 ${
+                            u.isBlocked
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}
+                          title={u.isBlocked ? 'Desbloquear Acesso' : 'Bloquear Acesso'}
+                        >
+                          {u.isBlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                          <span>{u.isBlocked ? 'Desbloquear' : 'Bloquear'}</span>
+                        </button>
+                      )}
+
+                      {/* Change role */}
+                      <button
+                        onClick={() => handleChangeRole(u.id, u.role === 'ADMIN' ? 'USER' : 'ADMIN')}
+                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 text-[11px] font-bold inline-flex items-center gap-1"
+                        title={u.role === 'ADMIN' ? 'Despromover para Apostador' : 'Promover para Super Admin'}
+                      >
+                        <Shield className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{u.role === 'ADMIN' ? 'Tornar User' : 'Tornar Admin'}</span>
+                      </button>
+
+                      {/* Reset Password */}
+                      <button
+                        onClick={() => handleResetPassword(u.id)}
+                        className="p-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg border border-slate-700"
+                        title="Redefinir Palavra-passe do utilizador"
+                      >
+                        <Key className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 5: GLOBAL BETS ================= */}
+      {activeTab === 'bets' && (
+        <div className="p-6 space-y-4">
+          <h3 className="font-extrabold text-base text-white">Todas as Apostas na Plataforma ({bets.length})</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Data</th>
+                  <th className="py-2.5 px-3">Apostador</th>
+                  <th className="py-2.5 px-3">Tipo / Jogos</th>
+                  <th className="py-2.5 px-3 text-right">Stake</th>
+                  <th className="py-2.5 px-3 text-right">Odd Total</th>
+                  <th className="py-2.5 px-3 text-right">Possível Retorno</th>
+                  <th className="py-2.5 px-3 text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {bets.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-800/40">
+                    <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                      {new Date(b.createdAt).toLocaleString('pt-PT')}
+                    </td>
+                    <td className="py-3 px-3 text-white">
+                      <div>{b.userName}</div>
+                      <div className="text-[10px] text-slate-500">{b.userEmail}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-300">
+                      <span className="font-bold">{b.type}</span> ({b.items.length} seleções)
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-white">{b.stake.toFixed(2)} MZN</td>
+                    <td className="py-3 px-3 text-right font-bold text-emerald-400">{b.totalOdds.toFixed(2)}</td>
+                    <td className="py-3 px-3 text-right font-black text-emerald-400">{b.potentialReturn.toFixed(2)} MZN</td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        b.status === 'WON'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : b.status === 'LOST'
+                          ? 'bg-rose-500/10 text-rose-400'
+                          : b.status === 'VOID'
+                          ? 'bg-cyan-500/10 text-cyan-400'
+                          : 'bg-amber-500/10 text-amber-400'
+                      }`}>
+                        {b.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 6: GLOBAL LEDGER TRANSACTIONS ================= */}
+      {activeTab === 'transactions' && (
+        <div className="p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-base text-white">Livro-Razão Financeiro Global ({transactions.length})</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Registo de auditoria imutável de todas as movimentações financeiras: depósitos, apostas, prémios e ajustes
+              </p>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Filtrar por referência, descrição ou ID..."
+                value={txSearch}
+                onChange={(e) => setTxSearch(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 w-full focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Data / Hora</th>
+                  <th className="py-2.5 px-3">Tipo</th>
+                  <th className="py-2.5 px-3">Utilizador (ID)</th>
+                  <th className="py-2.5 px-3">Referência & Descrição</th>
+                  <th className="py-2.5 px-3 text-right">Montante</th>
+                  <th className="py-2.5 px-3 text-right">Saldo Anterior</th>
+                  <th className="py-2.5 px-3 text-right">Novo Saldo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {filteredTransactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-800/40">
+                    <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                      {new Date(tx.createdAt).toLocaleString('pt-PT')}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        tx.type === 'WIN' || tx.type === 'DEPOSIT'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : tx.type === 'BET'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : tx.type === 'REFUND'
+                          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                          : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                      }`}>
+                        {tx.type}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-300 font-mono text-[11px]">
+                      {tx.userId}
+                    </td>
+                    <td className="py-3 px-3 text-slate-300">
+                      <div>{tx.description}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{tx.reference}</div>
+                    </td>
+                    <td className={`py-3 px-3 text-right font-black ${
+                      tx.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {tx.amount >= 0 ? `+${tx.amount.toFixed(2)}` : tx.amount.toFixed(2)} MZN
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-400">{tx.previousBalance.toFixed(2)} MZN</td>
+                    <td className="py-3 px-3 text-right font-bold text-white">{tx.nextBalance.toFixed(2)} MZN</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 6: AUDIT LOGS ================= */}
+      {activeTab === 'audit' && (
+        <div className="p-6 space-y-4">
+          <div>
+            <h3 className="font-extrabold text-base text-white">Registo Central de Auditoria</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Rastreamento imutável de todas as ações administrativas (criação de jogos, alteração de odds, liquidações, ajustes de saldo)
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Data / Hora</th>
+                  <th className="py-2.5 px-3">Administrador</th>
+                  <th className="py-2.5 px-3">Acção</th>
+                  <th className="py-2.5 px-3">Entidade & ID</th>
+                  <th className="py-2.5 px-3">Alteração (Anterior ➔ Novo)</th>
+                  <th className="py-2.5 px-3">IP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-800/40">
+                    <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                      {new Date(log.timestamp).toLocaleString('pt-PT')}
+                    </td>
+                    <td className="py-3 px-3 text-slate-300 font-bold">{log.adminEmail}</td>
+                    <td className="py-3 px-3">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                      {log.entity} ({log.entityId.substring(0, 10)})
+                    </td>
+                    <td className="py-3 px-3 text-slate-300 max-w-xs truncate">
+                      {log.oldValue && <span className="text-rose-400 line-through mr-1">{log.oldValue}</span>}
+                      {log.newValue && <span className="text-emerald-400">{log.newValue}</span>}
+                    </td>
+                    <td className="py-3 px-3 text-slate-500 font-mono text-[10px]">{log.ip}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 1: CREATE MATCH ================= */}
+      {showCreateMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-white max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h2 className="text-base font-extrabold flex items-center gap-2">
+                <Plus className="w-5 h-5 text-emerald-400" />
+                Criar Novo Jogo de Futebol
+              </h2>
+              <button onClick={() => setShowCreateMatch(false)} className="p-1 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMatch} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Competição / Campeonato (Exclusivo Moçambique)</label>
+                <select
+                  value={newCompetitionId}
+                  onChange={(e) => setNewCompetitionId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-emerald-500 font-medium"
+                >
+                  <optgroup label="🇲🇿 Campeonato Nacional">
+                    {competitions.filter((c) => c.category === 'MOCAMBOLA' || c.code === 'MOC' || c.name.includes('Moçambola')).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.country})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="📍 Campeonatos Provinciais">
+                    {competitions.filter((c) => c.category === 'PROVINCIAL' || c.name.includes('Provincial')).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.country})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🏟️ Campeonatos Distritais">
+                    {competitions.filter((c) => c.category === 'DISTRITAL' || c.name.includes('Distrital')).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.country})
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Equipa da Casa (1)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Ferroviário da Beira"
+                    value={newHomeTeam}
+                    onChange={(e) => setNewHomeTeam(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Equipa Visitante (2)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Black Bulls"
+                    value={newAwayTeam}
+                    onChange={(e) => setNewAwayTeam(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Data do Jogo</label>
+                  <input
+                    type="date"
+                    required
+                    value={newKickoffDate}
+                    onChange={(e) => setNewKickoffDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">Hora de Início</label>
+                  <input
+                    type="time"
+                    required
+                    value={newKickoffTime}
+                    onChange={(e) => setNewKickoffTime(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 1X2 Odds */}
+              <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700 space-y-2">
+                <span className="font-extrabold text-white block">Odds Iniciais 1X2</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Vitória Casa (1)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1.01"
+                      max="100.0"
+                      required
+                      value={newOddHome}
+                      onChange={(e) => setNewOddHome(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 font-bold text-emerald-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Empate (X)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1.01"
+                      max="100.0"
+                      required
+                      value={newOddDraw}
+                      onChange={(e) => setNewOddDraw(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 font-bold text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Vitória Fora (2)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1.01"
+                      max="100.0"
+                      required
+                      value={newOddAway}
+                      onChange={(e) => setNewOddAway(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 font-bold text-cyan-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Estado Inicial</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as any)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                >
+                  <option value="OPEN">ABERTO (Apostas disponíveis imediatamente)</option>
+                  <option value="DRAFT">RASCUNHO (Não visível aos apostadores)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Observações (Opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Estádio do Chiveve, Beira"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20"
+              >
+                REGISTAR & PUBLICAR JOGO
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 2: EDIT ODDS ================= */}
+      {showOddsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h2 className="text-base font-extrabold">Alterar Odds: {showOddsModal.homeTeam} vs {showOddsModal.awayTeam}</h2>
+              <button onClick={() => setShowOddsModal(null)} className="p-1 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateOdds} className="space-y-4">
+              <p className="text-xs text-slate-400">
+                Aviso: As novas odds serão aplicadas apenas a novas apostas. As apostas já registadas mantêm as odds congeladas do momento da aposta.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Casa (1)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    required
+                    value={editHome}
+                    onChange={(e) => setEditHome(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 font-black text-emerald-400 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Empate (X)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    required
+                    value={editDraw}
+                    onChange={(e) => setEditDraw(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 font-black text-slate-200 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Fora (2)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    required
+                    value={editAway}
+                    onChange={(e) => setEditAway(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 font-black text-cyan-400 text-sm"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm"
+              >
+                GRAVAR NOVAS ODDS
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 3: SETTLE RESULT ================= */}
+      {showResultModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h2 className="text-base font-extrabold flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-cyan-400" />
+                Liquidar Jogo & Pagar Apostas
+              </h2>
+              <button onClick={() => setShowResultModal(null)} className="p-1 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSettleResult} className="space-y-4">
+              <p className="text-xs text-slate-300">
+                Confronto: <strong>{showResultModal.homeTeam}</strong> vs <strong>{showResultModal.awayTeam}</strong>
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 bg-slate-800/80 p-4 rounded-xl border border-slate-700">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-400 mb-1">Golos {showResultModal.homeTeam}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    required
+                    value={homeScore}
+                    onChange={(e) => setHomeScore(Number(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-center text-2xl font-black text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-cyan-400 mb-1">Golos {showResultModal.awayTeam}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    required
+                    value={awayScore}
+                    onChange={(e) => setAwayScore(Number(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-center text-2xl font-black text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl text-xs text-amber-300">
+                <p className="font-bold">Aviso de Liquidação Atómica:</p>
+                <p className="text-[11px] mt-0.5">
+                  Ao confirmar, o sistema liquidará todas as apostas correspondentes, creditando imediatamente os valores ganhos nas carteiras dos utilizadores de forma irreversível.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20"
+              >
+                CONFIRMAR RESULTADO E LIQUIDAR APOSTAS
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 4: CANCEL MATCH ================= */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <h2 className="text-base font-extrabold text-rose-400 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Cancelar Jogo & Anular Apostas (VOID)
+              </h2>
+              <button onClick={() => setShowCancelModal(null)} className="p-1 text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCancelMatch} className="space-y-4">
+              <p className="text-xs text-slate-300">
+                Deseja cancelar <strong>{showCancelModal.homeTeam} vs {showCancelModal.awayTeam}</strong>? Todas as apostas simples serão marcadas como <em>VOID</em> e os montantes investidos serão 100% devolvidos aos utilizadores.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Motivo do Cancelamento (Obrigatório)</label>
+                <input
+                  type="text"
+                  required
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-xl text-sm"
+              >
+                CONFIRMAR CANCELAMENTO E REEMBOLSO
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 5: ADJUST BALANCE (SUPER ADMIN) ================= */}
+      <AdjustBalanceModal
+        user={showAdjustModal}
+        isOpen={!!showAdjustModal}
+        onClose={() => setShowAdjustModal(null)}
+        onSuccess={(msg) => {
+          notifySuccess(msg);
+          loadData();
+        }}
+      />
+
+      {/* ================= MODAL 6: USER DETAIL & RISK CONTROL ================= */}
+      <UserDetailModal
+        user={showUserDetailModal}
+        isOpen={!!showUserDetailModal}
+        onClose={() => setShowUserDetailModal(null)}
+        onAdjustBalance={(u) => {
+          setShowUserDetailModal(null);
+          setShowAdjustModal(u);
+        }}
+        onUserUpdated={loadData}
+      />
+
+    </div>
+  );
+};
