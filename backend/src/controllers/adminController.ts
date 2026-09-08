@@ -459,4 +459,54 @@ export class AdminController {
       message: `Jogo "${match.homeTeam} vs ${match.awayTeam}" excluído com sucesso do sistema.`,
     });
   }
+
+  static getDepositProofs(req: AuthenticatedRequest, res: Response): void {
+    const proofs = db.getDepositProofs();
+    res.status(200).json({ proofs });
+  }
+
+  static async updateDepositProofStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { status, reviewNotes } = req.body;
+
+    if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+      res.status(400).json({ error: 'Estado de comprovativo inválido.' });
+      return;
+    }
+
+    const proof = db.getDepositProof(id);
+    if (!proof) {
+      res.status(404).json({ error: 'Comprovativo de depósito não encontrado.' });
+      return;
+    }
+
+    const previousStatus = proof.status;
+    const updated = db.updateDepositProofStatus(
+      id,
+      status,
+      req.user.email,
+      reviewNotes || undefined
+    );
+
+    AuditService.log(
+      req.user.userId,
+      req.user.email,
+      'UPDATE_DEPOSIT_PROOF',
+      'DepositProof',
+      id,
+      { status: previousStatus },
+      { status, reviewNotes },
+      req.ip
+    );
+
+    res.status(200).json({
+      message: `Comprovativo de depósito atualizado para ${status}.`,
+      proof: updated,
+    });
+  }
 }

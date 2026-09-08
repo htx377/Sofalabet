@@ -2,6 +2,7 @@ import { db } from '../db/store.ts';
 import { Wallet, WalletTransaction, TransactionType } from '../types/index.ts';
 import { Money } from '../utils/money.ts';
 import { walletMutex } from '../utils/mutex.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class WalletService {
   /**
@@ -54,6 +55,7 @@ export class WalletService {
           break;
 
         case 'BET':
+        case 'WITHDRAWAL':
           if (Money.toCents(previousBalance) < Money.toCents(amount)) {
             throw new Error(`Saldo insuficiente. Saldo disponível: ${Money.format(previousBalance)} MZN, Necessário: ${Money.format(amount)} MZN`);
           }
@@ -93,6 +95,10 @@ export class WalletService {
       };
 
       db.transactions.push(transaction);
+
+      // Real-time synchronization with Supabase
+      supabaseService.syncWalletRealtime(wallet).catch(console.error);
+      supabaseService.syncTransactionRealtime(transaction).catch(console.error);
 
       return { wallet, transaction };
     });
@@ -136,6 +142,11 @@ export class WalletService {
       };
 
       db.transactions.push(transaction);
+
+      // Real-time synchronization with Supabase
+      supabaseService.syncWalletRealtime(wallet).catch(console.error);
+      supabaseService.syncTransactionRealtime(transaction).catch(console.error);
+
       return { wallet, transaction };
     });
   }

@@ -103,7 +103,7 @@ export interface WalletTransaction {
   id: string;
   walletId: string;
   userId: string;
-  type: 'DEPOSIT' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT';
   amount: number;
   previousBalance: number;
   nextBalance: number;
@@ -111,6 +111,29 @@ export interface WalletTransaction {
   description: string;
   status: 'COMPLETED' | 'FAILED';
   createdAt: string;
+}
+
+export type DepositProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface DepositProof {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhone: string;
+  userEmail: string;
+  amount: number;
+  method: 'MPESA' | 'EMOLA' | 'MKESH' | 'BANK';
+  referenceCode: string;
+  operatorTxId?: string;
+  receiptFileName?: string;
+  receiptDataUrl?: string;
+  receiptFileSize?: number;
+  notes?: string;
+  status: DepositProofStatus;
+  reviewedBy?: string;
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuditLog {

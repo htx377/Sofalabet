@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { X, Lock, Mail, User, Phone, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { X, Lock, Mail, User, Phone, ShieldCheck, Eye, EyeOff, Sparkles } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,11 +15,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [loading, setLoading] = useState(false);
 
   // Form states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('+258 ');
+  const [phone, setPhone] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   if (!isOpen) return null;
 
@@ -30,12 +32,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
     try {
       if (mode === 'login') {
-        await login({ email, password });
-      } else {
-        if (password !== confirmPassword) {
-          throw new Error('As passwords não coincidem');
+        const identifier = loginIdentifier.trim();
+        if (!identifier) {
+          throw new Error('Introduza o seu número de celular ou email');
         }
-        await register({ name, email, phone, password, confirmPassword });
+        await login({ identifier, password });
+      } else {
+        const cleanName = name.trim();
+        const cleanPhone = phone.trim();
+
+        if (cleanName.length < 2) {
+          throw new Error('O nome completo deve ter pelo menos 2 caracteres');
+        }
+
+        const digits = cleanPhone.replace(/\D/g, '');
+        if (digits.length < 8) {
+          throw new Error('Introduza um número de celular válido (ex: 84 123 4567)');
+        }
+
+        if (password.length < 6) {
+          throw new Error('A palavra-passe deve ter pelo menos 6 caracteres');
+        }
+
+        if (password !== confirmPassword) {
+          throw new Error('As palavras-passe não coincidem');
+        }
+
+        await register({
+          name: cleanName,
+          phone: cleanPhone.startsWith('+') ? cleanPhone : `+258 ${cleanPhone}`,
+          password,
+          confirmPassword,
+        });
       }
       onClose();
     } catch (err: any) {
@@ -47,14 +75,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
 
   const quickFillAdmin = () => {
     setMode('login');
-    setEmail('admin@example.com');
+    setLoginIdentifier('admin@example.com');
     setPassword('Admin123!ChangeMe');
     setError(null);
   };
 
   const quickFillUser = () => {
     setMode('login');
-    setEmail('apostador@exemplo.co.mz');
+    setLoginIdentifier('+258 84 123 4567');
     setPassword('Apostador123!');
     setError(null);
   };
@@ -72,7 +100,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         </button>
 
         {/* Tab switch */}
-        <div className="flex border-b border-slate-800 mb-6 pb-2">
+        <div className="flex border-b border-slate-800 mb-5 pb-2">
           <button
             id="modal-tab-login"
             onClick={() => { setMode('login'); setError(null); }}
@@ -97,6 +125,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           </button>
         </div>
 
+        {/* Welcome message */}
+        {mode === 'register' ? (
+          <div className="mb-4 bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-emerald-300">Registo Rápido SofalaBet</p>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Registe-se com o seu número de celular e receba <strong>1.000,00 MZN</strong> de saldo bónus imediato!
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 mb-4">
+            Aceda à sua carteira, consulte o histórico de bilhetes e faça apostas nas ligas nacionais e provinciais.
+          </p>
+        )}
+
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium">
             {error}
@@ -104,11 +149,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'register' && (
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {mode === 'register' ? (
             <>
+              {/* Nome Completo */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Nome Completo</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Nome Completo <span className="text-rose-400">*</span>
+                </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                   <input
@@ -117,94 +165,155 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Carlos Cossa"
+                    placeholder="Ex: Carlos Alberto Cossa"
                     className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
 
+              {/* Número de Celular */}
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Contacto Telefónico</label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Número de Celular <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-medium">M-Pesa • e-Mola • mKesh</span>
+                </div>
+                <div className="relative flex items-center">
+                  <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 font-bold text-xs pointer-events-none">
+                    <span>🇲🇿</span>
+                    <span>+258</span>
+                  </div>
                   <input
                     id="register-phone-input"
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+258 84 123 4567"
+                    placeholder="84 123 4567"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Insira o seu contacto de operadora (Vodacom, Movitel ou Tmcel).
+                </p>
+              </div>
+
+              {/* Palavra-passe */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Palavra-passe <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    id="register-password-input"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirmar Palavra-passe */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Confirmar Palavra-passe <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    id="register-confirm-password-input"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a palavra-passe"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Login Identifier */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Número de Celular ou Email
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    id="auth-identifier-input"
+                    type="text"
+                    required
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    placeholder="Ex: 84 123 4567 ou email@exemplo.co.mz"
                     className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
-            </>
-          )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Endereço de Email</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              <input
-                id="auth-email-input"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu.email@exemplo.com"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Palavra-passe</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              <input
-                id="auth-password-input"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          {mode === 'register' && (
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Confirmar Palavra-passe</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                <input
-                  id="register-confirm-password-input"
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">Palavra-passe</label>
+                </div>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    id="auth-password-input"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           <button
             id="auth-submit-btn"
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm flex items-center justify-center gap-2"
+            className="w-full mt-3 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm flex items-center justify-center gap-2 active:scale-98"
           >
-            {loading ? 'A processar...' : mode === 'login' ? 'Entrar na Conta' : 'Criar Nova Conta'}
+            {loading ? 'A processar...' : mode === 'login' ? 'Entrar na Conta' : 'Criar Conta e Receber Bónus'}
           </button>
         </form>
 
         {/* Quick Access Bar */}
         <div className="mt-6 pt-4 border-t border-slate-800">
           <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-            Acesso Rápido
+            Acesso Rápido de Testes
           </p>
           <button
             type="button"
@@ -212,22 +321,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             className="w-full p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-left transition-colors flex items-center justify-between"
           >
             <div>
-              <span className="block text-xs font-bold text-emerald-400">Entrar como Apostador Registado</span>
-              <span className="block text-[10px] text-slate-400">apostador@exemplo.co.mz</span>
+              <span className="block text-xs font-bold text-emerald-400">Apostador: Nelson Tembe</span>
+              <span className="block text-[10px] text-slate-400">+258 84 123 4567 • apostador@exemplo.co.mz</span>
             </div>
             <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">1-Clique</span>
           </button>
-          
-          <div className="mt-3 text-center">
-            <button
-              type="button"
-              onClick={quickFillAdmin}
-              className="text-[11px] text-slate-500 hover:text-amber-400 transition-colors inline-flex items-center gap-1 font-medium"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>Acesso ao Painel do Super Administrador</span>
-            </button>
-          </div>
         </div>
 
       </div>

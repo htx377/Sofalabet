@@ -5,6 +5,7 @@ import matchRoutes from './routes/matchRoutes.ts';
 import betRoutes from './routes/betRoutes.ts';
 import walletRoutes from './routes/walletRoutes.ts';
 import adminRoutes from './routes/adminRoutes.ts';
+import supabaseRoutes from './routes/supabaseRoutes.ts';
 import { rateLimiter } from './middleware/auth.ts';
 
 export function createExpressApp() {
@@ -12,7 +13,8 @@ export function createExpressApp() {
 
   // Basic security and parsing
   app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '15mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
   app.use(rateLimiter(200, 60000));
 
   // Request logger in dev
@@ -43,6 +45,7 @@ export function createExpressApp() {
   app.use('/api/bets', betRoutes);
   app.use('/api/wallet', walletRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/supabase', supabaseRoutes);
 
   // Global error handler for API
   app.use('/api/*', (err: any, req: Request, res: Response, next: NextFunction) => {

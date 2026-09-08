@@ -32,6 +32,161 @@ export class WalletController {
     res.status(200).json({ transactions });
   }
 
+  // Process deposit request (M-Pesa, e-Mola, mKesh, Bank Transfer)
+  static async deposit(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    const amount = Number(req.body.amount);
+    const method = (req.body.method || 'MPESA').toUpperCase();
+    const phone = req.body.phoneNumber ? String(req.body.phoneNumber).trim() : '';
+
+    if (isNaN(amount) || amount < 10) {
+      res.status(400).json({ error: 'Montante mínimo de depósito é de 10,00 MZN.' });
+      return;
+    }
+
+    if (amount > 100000) {
+      res.status(400).json({ error: 'Montante máximo de depósito por operação é de 100.000,00 MZN.' });
+      return;
+    }
+
+    let methodLabel = 'M-Pesa';
+    let shortCode = 'MPESA';
+    if (method.includes('EMOLA') || method.includes('E-MOLA')) {
+      methodLabel = 'e-Mola';
+      shortCode = 'EMOLA';
+    } else if (method.includes('MKESH') || method.includes('M-KESH')) {
+      methodLabel = 'mKesh';
+      shortCode = 'MKESH';
+    } else if (method.includes('BANK') || method.includes('BANCO')) {
+      methodLabel = 'Transferência Bancária / Ponto24';
+      shortCode = 'BANK';
+    }
+
+    const user = db.users.get(req.user.userId);
+    const targetPhone = phone || user?.phone || 'Celular da Conta';
+    const refCode = `DEP-${shortCode}-${Date.now().toString().slice(-6)}`;
+
+    const receiptImage = req.body.receiptImage ? String(req.body.receiptImage) : undefined;
+    const receiptFileName = req.body.receiptFileName ? String(req.body.receiptFileName) : undefined;
+    const receiptFileSize = req.body.receiptFileSize ? Number(req.body.receiptFileSize) : undefined;
+    const receiptReference = req.body.receiptReference ? String(req.body.receiptReference).trim() : undefined;
+    const notes = req.body.notes ? String(req.body.notes).trim() : undefined;
+
+    try {
+      const { wallet, transaction } = await WalletService.executeTransaction({
+        userId: req.user.userId,
+        type: 'DEPOSIT',
+        amount,
+        reference: refCode,
+        description: `Depósito via ${methodLabel} (${targetPhone})${receiptReference ? ` [Ref: ${receiptReference}]` : ''}`,
+      });
+
+      // Register deposit proof for administration review & audit trail
+      const depositProof = db.addDepositProof({
+        id: `proof-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        userId: req.user.userId,
+        userName: user?.name || 'Apostador SofalaBet',
+        userPhone: targetPhone,
+        userEmail: user?.email || '',
+        amount,
+        method: shortCode as any,
+        referenceCode: refCode,
+        operatorTxId: receiptReference,
+        receiptFileName,
+        receiptDataUrl: receiptImage,
+        receiptFileSize,
+        notes,
+        status: 'APPROVED',
+        reviewedBy: 'Sistema SofalaBet / Instantâneo',
+        reviewNotes: receiptFileName
+          ? `Comprovativo enviado pelo apostador (${receiptFileName}). Arquivado no sistema da administração.`
+          : 'Depósito registrado via canal de pagamento móvel.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      res.status(200).json({
+        message: `Depósito de ${amount.toFixed(2)} MZN via ${methodLabel} confirmado com sucesso!`,
+        wallet,
+        transaction,
+        depositProof,
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erro ao processar depósito' });
+    }
+  }
+
+  // Process withdrawal request (M-Pesa, e-Mola, mKesh, Bank Transfer)
+  static async withdraw(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    const amount = Number(req.body.amount);
+    const method = (req.body.method || 'MPESA').toUpperCase();
+    const phone = req.body.phoneNumber ? String(req.body.phoneNumber).trim() : '';
+    const bankDetails = req.body.bankDetails ? String(req.body.bankDetails).trim() : '';
+
+    if (isNaN(amount) || amount < 20) {
+      res.status(400).json({ error: 'Montante mínimo de levantamento é de 20,00 MZN.' });
+      return;
+    }
+
+    const wallet = WalletService.getWallet(req.user.userId);
+    if (wallet.balance < amount) {
+      res.status(400).json({
+        error: `Saldo insuficiente. O seu saldo disponível é de ${wallet.balance.toFixed(2)} MZN.`,
+      });
+      return;
+    }
+
+    let methodLabel = 'M-Pesa';
+    let shortCode = 'MPESA';
+    let target = phone;
+
+    if (method.includes('EMOLA') || method.includes('E-MOLA')) {
+      methodLabel = 'e-Mola';
+      shortCode = 'EMOLA';
+    } else if (method.includes('MKESH') || method.includes('M-KESH')) {
+      methodLabel = 'mKesh';
+      shortCode = 'MKESH';
+    } else if (method.includes('BANK') || method.includes('BANCO')) {
+      methodLabel = 'Transferência Bancária';
+      shortCode = 'BANK';
+      target = bankDetails || 'Conta Bancária Moçambicana';
+    }
+
+    if (!target) {
+      const user = db.users.get(req.user.userId);
+      target = user?.phone || 'Celular da Conta';
+    }
+
+    const refCode = `LEV-${shortCode}-${Date.now().toString().slice(-6)}`;
+
+    try {
+      const { wallet: updatedWallet, transaction } = await WalletService.executeTransaction({
+        userId: req.user.userId,
+        type: 'WITHDRAWAL',
+        amount,
+        reference: refCode,
+        description: `Levantamento via ${methodLabel} para ${target}`,
+      });
+
+      res.status(200).json({
+        message: `Levantamento de ${amount.toFixed(2)} MZN processado com sucesso para ${target}!`,
+        wallet: updatedWallet,
+        transaction,
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erro ao processar levantamento' });
+    }
+  }
+
   // Prepared endpoint for sandbox/virtual deposit (simulating M-Pesa / e-Mola top-up in test mode)
   static async requestVirtualTopup(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
@@ -64,5 +219,14 @@ export class WalletController {
     } catch (err: any) {
       res.status(400).json({ error: err.message || 'Erro ao processar recarga' });
     }
+  }
+
+  static async getUserDepositProofs(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+    const proofs = db.getDepositProofs(req.user.userId);
+    res.status(200).json({ proofs });
   }
 }

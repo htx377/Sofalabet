@@ -25,6 +25,8 @@ router.delete('/matches/:id', AdminController.deleteMatch);
 
 router.get('/bets', AdminController.getAllBets);
 router.get('/transactions', AdminController.getAllTransactions);
+router.get('/deposit-proofs', AdminController.getDepositProofs);
+router.patch('/deposit-proofs/:id/status', AdminController.updateDepositProofStatus);
 router.get('/audit-logs', AdminController.getAuditLogs);
 
 export default router;

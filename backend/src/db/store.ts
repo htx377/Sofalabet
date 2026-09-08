@@ -8,6 +8,8 @@ import {
   Team,
   Bet,
   AuditLog,
+  DepositProof,
+  DepositProofStatus,
 } from '../types/index.ts';
 
 export interface IdempotencyRecord {
@@ -27,6 +29,7 @@ class DatabaseStore {
   public bets: Map<string, Bet> = new Map();
   public auditLogs: AuditLog[] = [];
   public idempotencyRecords: Map<string, IdempotencyRecord> = new Map();
+  public depositProofs: DepositProof[] = [];
 
   private initialized = false;
 
@@ -135,29 +138,29 @@ class DatabaseStore {
     ];
 
     // 3. Seed Users
-    // Admin user: admin@example.com / Admin123!ChangeMe
-    const adminPasswordHash = bcrypt.hashSync('Admin123!ChangeMe', 10);
-    const adminUser: User = {
-      id: 'usr-admin-01',
-      name: 'Administrador SofalaBet',
-      email: 'admin@example.com',
-      phone: '+258840000001',
-      passwordHash: adminPasswordHash,
+    // Super Admin: 872344381 / 12345678j (Super Administrador SofalaBet)
+    const superAdminPasswordHash = bcrypt.hashSync('12345678j', 10);
+    const superAdminUser: User = {
+      id: 'usr-superadmin-01',
+      name: 'Super Administrador SofalaBet',
+      email: 'admin@sofalabet.mz',
+      phone: '+258872344381',
+      passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
       isBlocked: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    this.users.set(adminUser.id, adminUser);
+    this.users.set(superAdminUser.id, superAdminUser);
 
-    const adminWallet: Wallet = {
-      id: 'wal-admin-01',
-      userId: adminUser.id,
-      balance: 100000,
+    const superAdminWallet: Wallet = {
+      id: 'wal-superadmin-01',
+      userId: superAdminUser.id,
+      balance: 1000000,
       lockedBalance: 0,
       updatedAt: new Date().toISOString(),
     };
-    this.wallets.set(adminUser.id, adminWallet);
+    this.wallets.set(superAdminUser.id, superAdminWallet);
 
     // Test standard user: apostador@exemplo.co.mz / Apostador123!
     const userPasswordHash = bcrypt.hashSync('Apostador123!', 10);
@@ -198,6 +201,26 @@ class DatabaseStore {
       createdAt: new Date().toISOString(),
     };
     this.transactions.push(initialDepositTx);
+
+    // Initial seed deposit proof
+    this.depositProofs.push({
+      id: 'proof-seed-01',
+      userId: testUser.id,
+      userName: testUser.name,
+      userPhone: testUser.phone,
+      userEmail: testUser.email,
+      amount: 1000.0,
+      method: 'MPESA',
+      referenceCode: 'DEP-MPESA-10001',
+      operatorTxId: 'MP260907.1240.B9182',
+      receiptFileName: 'comprovativo_mpesa_1000mzn.png',
+      notes: 'Depósito inicial efetuado via M-Pesa Agente Beira Centro',
+      status: 'APPROVED',
+      reviewedBy: 'admin@example.com',
+      reviewNotes: 'Verificado e validado com o extrato da Vodacom M-Pesa',
+      createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 3.5).toISOString(),
+    });
 
     // 4. Seed Matches & 1X2 Markets (Moçambola, Provinciais e Distritais)
     const sampleMatches: Match[] = [
@@ -435,11 +458,42 @@ class DatabaseStore {
   // Helper getters
   public getUserByEmail(email: string): User | undefined {
     for (const user of this.users.values()) {
-      if (user.email.toLowerCase() === email.toLowerCase()) {
+      if (user.email && user.email.toLowerCase() === email.toLowerCase()) {
         return user;
       }
     }
     return undefined;
+  }
+
+  public getUserByPhone(phone: string): User | undefined {
+    const targetDigits = phone.replace(/\D/g, '');
+    if (!targetDigits) return undefined;
+
+    for (const user of this.users.values()) {
+      if (!user.phone) continue;
+      const userDigits = user.phone.replace(/\D/g, '');
+      // Match exact digits or suffix of 9 Mozambican digits (e.g. 841234567)
+      if (
+        userDigits === targetDigits ||
+        (targetDigits.length >= 8 && userDigits.endsWith(targetDigits.slice(-9))) ||
+        (userDigits.length >= 8 && targetDigits.endsWith(userDigits.slice(-9)))
+      ) {
+        return user;
+      }
+    }
+    return undefined;
+  }
+
+  public getUserByIdentifier(identifier: string): User | undefined {
+    const trimmed = identifier.trim();
+    if (trimmed.includes('@')) {
+      return this.getUserByEmail(trimmed);
+    }
+    // Try by phone first
+    const byPhone = this.getUserByPhone(trimmed);
+    if (byPhone) return byPhone;
+    // Fallback to email in case identifier is an email without @ or username
+    return this.getUserByEmail(trimmed);
   }
 
   public getWallet(userId: string): Wallet | undefined {
@@ -491,6 +545,38 @@ class DatabaseStore {
     this.auditLogs.unshift(fullLog);
     return fullLog;
   }
+
+  public addDepositProof(proof: DepositProof): DepositProof {
+    this.depositProofs.unshift(proof);
+    return proof;
+  }
+
+  public getDepositProofs(userId?: string): DepositProof[] {
+    if (userId) {
+      return this.depositProofs.filter((d) => d.userId === userId);
+    }
+    return this.depositProofs;
+  }
+
+  public getDepositProof(id: string): DepositProof | undefined {
+    return this.depositProofs.find((d) => d.id === id);
+  }
+
+  public updateDepositProofStatus(
+    id: string,
+    status: DepositProofStatus,
+    reviewedBy?: string,
+    reviewNotes?: string
+  ): DepositProof | null {
+    const proof = this.depositProofs.find((p) => p.id === id);
+    if (!proof) return null;
+    proof.status = status;
+    if (reviewedBy) proof.reviewedBy = reviewedBy;
+    if (reviewNotes !== undefined) proof.reviewNotes = reviewNotes;
+    proof.updatedAt = new Date().toISOString();
+    return proof;
+  }
 }
 
 export const db = new DatabaseStore();
+export const dbStore = db;

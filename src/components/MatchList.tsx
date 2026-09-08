@@ -327,7 +327,7 @@ export const MatchList: React.FC = () => {
                           odds: homeSelection.odds,
                         })
                       }
-                      className={`group relative p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                      className={`group relative p-2 sm:p-2.5 min-h-[48px] rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation ${
                         isSelectionInSlip(homeSelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
                           : isOpen
@@ -335,12 +335,12 @@ export const MatchList: React.FC = () => {
                           : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
                       }`}
                     >
-                      <span className={`text-[10px] font-bold mb-0.5 whitespace-nowrap ${
+                      <span className={`text-[9px] sm:text-[10px] font-bold mb-0.5 truncate max-w-full ${
                         isSelectionInSlip(homeSelection.id) ? 'text-slate-900' : 'text-slate-400'
                       }`}>
                         1 • Casa
                       </span>
-                      <span className="text-sm sm:text-base font-black tracking-tight">
+                      <span className="text-sm sm:text-base font-black tracking-tight leading-none">
                         {homeSelection.odds.toFixed(2)}
                       </span>
                     </button>
@@ -364,7 +364,7 @@ export const MatchList: React.FC = () => {
                           odds: drawSelection.odds,
                         })
                       }
-                      className={`group relative p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                      className={`group relative p-2 sm:p-2.5 min-h-[48px] rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation ${
                         isSelectionInSlip(drawSelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
                           : isOpen
@@ -372,12 +372,12 @@ export const MatchList: React.FC = () => {
                           : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
                       }`}
                     >
-                      <span className={`text-[10px] font-bold mb-0.5 whitespace-nowrap ${
+                      <span className={`text-[9px] sm:text-[10px] font-bold mb-0.5 truncate max-w-full ${
                         isSelectionInSlip(drawSelection.id) ? 'text-slate-900' : 'text-slate-400'
                       }`}>
                         X • Empate
                       </span>
-                      <span className="text-sm sm:text-base font-black tracking-tight">
+                      <span className="text-sm sm:text-base font-black tracking-tight leading-none">
                         {drawSelection.odds.toFixed(2)}
                       </span>
                     </button>
@@ -401,7 +401,7 @@ export const MatchList: React.FC = () => {
                           odds: awaySelection.odds,
                         })
                       }
-                      className={`group relative p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 ${
+                      className={`group relative p-2 sm:p-2.5 min-h-[48px] rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation ${
                         isSelectionInSlip(awaySelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
                           : isOpen
@@ -409,12 +409,12 @@ export const MatchList: React.FC = () => {
                           : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
                       }`}
                     >
-                      <span className={`text-[10px] font-bold mb-0.5 whitespace-nowrap ${
+                      <span className={`text-[9px] sm:text-[10px] font-bold mb-0.5 truncate max-w-full ${
                         isSelectionInSlip(awaySelection.id) ? 'text-slate-900' : 'text-slate-400'
                       }`}>
                         2 • Fora
                       </span>
-                      <span className="text-sm sm:text-base font-black tracking-tight">
+                      <span className="text-sm sm:text-base font-black tracking-tight leading-none">
                         {awaySelection.odds.toFixed(2)}
                       </span>
                     </button>

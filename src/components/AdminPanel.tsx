@@ -7,6 +7,7 @@ import {
   DashboardStats,
   Bet,
   WalletTransaction,
+  DepositProof,
 } from '../types.ts';
 import { api } from '../api.ts';
 import { AdjustBalanceModal } from './AdjustBalanceModal.tsx';
@@ -33,6 +34,17 @@ import {
   Trash2,
   Key,
   Search,
+  ArrowDownLeft,
+  FileCheck,
+  ExternalLink,
+  Download,
+  Paperclip,
+  Image as ImageIcon,
+  Database,
+  Copy,
+  Check,
+  Terminal,
+  HardDrive,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -40,7 +52,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'matches' | 'results' | 'users' | 'bets' | 'transactions' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'matches' | 'results' | 'users' | 'bets' | 'transactions' | 'deposits' | 'audit' | 'supabase'>('overview');
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -49,6 +61,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [bets, setBets] = useState<Bet[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [depositProofs, setDepositProofs] = useState<DepositProof[]>([]);
+  const [selectedProof, setSelectedProof] = useState<DepositProof | null>(null);
+  const [depositFilter, setDepositFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [proofSearch, setProofSearch] = useState('');
+  const [reviewNotesInput, setReviewNotesInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -96,11 +113,70 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   // User search
   const [userSearch, setUserSearch] = useState('');
 
+  // Supabase states
+  const [supabaseStatus, setSupabaseStatus] = useState<{
+    isConfigured: boolean;
+    connected: boolean;
+    url: string | null;
+    hasServiceKey: boolean;
+    hasAnonKey: boolean;
+    error?: string | null;
+    tables?: any;
+  } | null>(null);
+  const [supabaseSchemaSql, setSupabaseSchemaSql] = useState<string>('');
+  const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const fetchSupabaseInfo = async () => {
+    try {
+      const [statusRes, schemaRes] = await Promise.all([
+        api.getSupabaseStatus(),
+        api.getSupabaseSchema().catch(() => ({ sql: '' })),
+      ]);
+      setSupabaseStatus(statusRes);
+      if (schemaRes?.sql) {
+        setSupabaseSchemaSql(schemaRes.sql);
+      }
+    } catch (e: any) {
+      console.warn('Erro ao obter info do Supabase:', e);
+    }
+  };
+
+  const handleSyncToSupabase = async () => {
+    setSyncingSupabase(true);
+    setActionSuccess(null);
+    setActionError(null);
+    try {
+      const res = await api.syncSupabase();
+      if (res.success) {
+        notifySuccess(res.message);
+        await fetchSupabaseInfo();
+      } else {
+        notifyError(res.message);
+      }
+    } catch (err: any) {
+      notifyError(err.message || 'Falha ao sincronizar dados com o Supabase');
+    } finally {
+      setSyncingSupabase(false);
+    }
+  };
+
+  const handleCopySql = async () => {
+    try {
+      await navigator.clipboard.writeText(supabaseSchemaSql);
+      setCopiedSql(true);
+      notifySuccess('Script SQL copiado com sucesso! Cole-o no SQL Editor do seu projeto Supabase.');
+      setTimeout(() => setCopiedSql(false), 4000);
+    } catch {
+      notifyError('Não foi possível copiar para a área de transferência');
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     setActionError(null);
     try {
-      const [dashRes, matchRes, compRes, userRes, auditRes, betsRes, txRes] = await Promise.all([
+      const [dashRes, matchRes, compRes, userRes, auditRes, betsRes, txRes, proofsRes] = await Promise.all([
         api.getAdminDashboard(),
         api.getMatches(),
         api.getCompetitions(),
@@ -108,6 +184,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
         api.getAdminAuditLogs(),
         api.getAdminBets(),
         api.getAdminTransactions(),
+        api.getAdminDepositProofs(),
+        fetchSupabaseInfo(),
       ]);
 
       setStats(dashRes.stats);
@@ -117,6 +195,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
       setAuditLogs(auditRes.logs);
       setBets(betsRes.bets);
       setTransactions(txRes.transactions);
+      setDepositProofs(proofsRes.proofs || []);
     } catch (err: any) {
       setActionError(err.message || 'Erro ao carregar dados do painel');
     } finally {
@@ -291,6 +370,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     tx.userId.toLowerCase().includes(txSearch.toLowerCase())
   );
 
+  const handleUpdateProofStatus = async (id: string, newStatus: 'APPROVED' | 'REJECTED' | 'PENDING', notes?: string) => {
+    try {
+      const res = await api.updateDepositProofStatus(id, newStatus, notes);
+      notifySuccess(res.message);
+      if (selectedProof?.id === id) {
+        setSelectedProof(res.proof);
+      }
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao atualizar estado do comprovativo');
+    }
+  };
+
+  const filteredDepositProofs = depositProofs.filter((p) => {
+    const matchesSearch =
+      p.userName.toLowerCase().includes(proofSearch.toLowerCase()) ||
+      p.userPhone.includes(proofSearch) ||
+      p.referenceCode.toLowerCase().includes(proofSearch.toLowerCase()) ||
+      (p.operatorTxId && p.operatorTxId.toLowerCase().includes(proofSearch.toLowerCase())) ||
+      (p.notes && p.notes.toLowerCase().includes(proofSearch.toLowerCase()));
+
+    if (!matchesSearch) return false;
+    if (depositFilter === 'ALL') return true;
+    return p.status === depositFilter;
+  });
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden text-white space-y-6">
       
@@ -367,7 +472,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
           { id: 'users', label: 'Utilizadores & Saldos', icon: Users },
           { id: 'bets', label: 'Apostas Globais', icon: History },
           { id: 'transactions', label: 'Livro-Razão (Ledger)', icon: DollarSign },
+          { id: 'deposits', label: `Comprovativos (${depositProofs.length})`, icon: ArrowDownLeft },
           { id: 'audit', label: 'Registo de Auditoria', icon: FileText },
+          { id: 'supabase', label: 'Supabase Cloud & BD', icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -950,6 +1057,535 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 7: DEPOSIT PROOFS (COMPROVATIVOS) ================= */}
+      {activeTab === 'deposits' && (
+        <div className="p-4 sm:p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <FileCheck className="w-5 h-5 text-emerald-400" />
+                <span>Comprovativos de Depósito da Administração</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Central de conferência e auditoria de talões, capturas de ecrã M-Pesa/e-Mola/mKesh e transferências bancárias enviadas pelos apostadores.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 font-bold text-slate-300">
+                Total Registados: <strong className="text-emerald-400">{depositProofs.length}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
+              <span className="text-[11px] text-slate-400 block font-medium">Total Comprovativos</span>
+              <span className="text-xl font-black text-white">{depositProofs.length}</span>
+            </div>
+            <div className="p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
+              <span className="text-[11px] text-slate-400 block font-medium">Volume em Depósitos</span>
+              <span className="text-xl font-black text-emerald-400">
+                {depositProofs.reduce((acc, p) => acc + p.amount, 0).toFixed(2)} <span className="text-xs font-normal">MZN</span>
+              </span>
+            </div>
+            <div className="p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
+              <span className="text-[11px] text-slate-400 block font-medium">Aprovados / Confirmados</span>
+              <span className="text-xl font-black text-emerald-400">
+                {depositProofs.filter((p) => p.status === 'APPROVED').length}
+              </span>
+            </div>
+            <div className="p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
+              <span className="text-[11px] text-slate-400 block font-medium">Pendentes de Revisão</span>
+              <span className="text-xl font-black text-amber-400">
+                {depositProofs.filter((p) => p.status === 'PENDING').length}
+              </span>
+            </div>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              {(['ALL', 'APPROVED', 'PENDING', 'REJECTED'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setDepositFilter(filter)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-colors border ${
+                    depositFilter === filter
+                      ? 'bg-amber-500 text-slate-950 border-amber-400'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                  }`}
+                >
+                  {filter === 'ALL' && 'Todos'}
+                  {filter === 'APPROVED' && 'Aprovados'}
+                  {filter === 'PENDING' && 'Pendentes'}
+                  {filter === 'REJECTED' && 'Rejeitados'}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                value={proofSearch}
+                onChange={(e) => setProofSearch(e.target.value)}
+                placeholder="Pesquisar por nome, celular, ref..."
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          {/* Proofs Table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-2.5 px-3">Data / Hora</th>
+                  <th className="py-2.5 px-3">Apostador</th>
+                  <th className="py-2.5 px-3">Montante</th>
+                  <th className="py-2.5 px-3">Método</th>
+                  <th className="py-2.5 px-3">Referência Sistema & Operadora</th>
+                  <th className="py-2.5 px-3">Comprovativo</th>
+                  <th className="py-2.5 px-3">Estado</th>
+                  <th className="py-2.5 px-3 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {filteredDepositProofs.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-500">
+                      Nenhum comprovativo encontrado para os critérios selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDepositProofs.map((proof) => (
+                    <tr key={proof.id} className="hover:bg-slate-800/40">
+                      <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                        {new Date(proof.createdAt).toLocaleString('pt-PT')}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-white">{proof.userName}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{proof.userPhone}</div>
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className="font-black text-emerald-400 text-sm">
+                          +{proof.amount.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 ml-1">MZN</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          proof.method === 'MPESA'
+                            ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                            : proof.method === 'EMOLA'
+                            ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30'
+                            : proof.method === 'MKESH'
+                            ? 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
+                            : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                        }`}>
+                          {proof.method === 'MPESA' ? 'M-Pesa' : proof.method === 'EMOLA' ? 'e-Mola' : proof.method === 'MKESH' ? 'mKesh' : 'Banco'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px]">
+                        <div className="text-slate-300 font-bold">{proof.referenceCode}</div>
+                        {proof.operatorTxId && (
+                          <div className="text-[10px] text-emerald-400 font-bold">
+                            Op: {proof.operatorTxId}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        {proof.receiptDataUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProof(proof);
+                              setReviewNotesInput(proof.reviewNotes || '');
+                            }}
+                            className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-750 transition-colors group text-left"
+                          >
+                            <img
+                              src={proof.receiptDataUrl}
+                              alt="Comprovativo"
+                              className="w-9 h-9 rounded object-cover border border-slate-700 group-hover:border-emerald-500 transition-colors shrink-0 bg-black"
+                            />
+                            <div className="max-w-[120px]">
+                              <span className="text-[11px] font-bold text-slate-200 block truncate group-hover:text-emerald-400">
+                                {proof.receiptFileName || 'Ver Imagem'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block flex items-center gap-1">
+                                <Eye className="w-3 h-3 text-emerald-400" />
+                                <span>Ampliar</span>
+                              </span>
+                            </div>
+                          </button>
+                        ) : proof.receiptFileName ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProof(proof);
+                              setReviewNotesInput(proof.reviewNotes || '');
+                            }}
+                            className="flex items-center gap-1.5 text-slate-300 hover:text-white"
+                          >
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            <span className="truncate max-w-[120px] underline">{proof.receiptFileName}</span>
+                          </button>
+                        ) : (
+                          <span className="text-slate-500 text-[11px] italic">Via SMS / App</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          proof.status === 'APPROVED'
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                            : proof.status === 'PENDING'
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                            : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                        }`}>
+                          {proof.status === 'APPROVED' ? 'Aprovado' : proof.status === 'PENDING' ? 'Pendente' : 'Rejeitado'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProof(proof);
+                            setReviewNotesInput(proof.reviewNotes || '');
+                          }}
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700 text-xs transition-colors inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Detalhes</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: DETAILED PROOF INSPECTION ================= */}
+      {selectedProof && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white max-h-[92vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-base font-extrabold text-white">
+                  Auditoria de Comprovativo de Depósito
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProof(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Proof Image / Document View */}
+            {selectedProof.receiptDataUrl ? (
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center space-y-2">
+                <span className="text-[11px] text-slate-400 block font-semibold">
+                  Arquivo Anexado: {selectedProof.receiptFileName || 'Comprovativo de Pagamento'}
+                </span>
+                <div className="max-h-[50vh] overflow-auto flex items-center justify-center rounded-lg bg-black/40 p-2">
+                  <img
+                    src={selectedProof.receiptDataUrl}
+                    alt="Comprovativo original"
+                    className="max-h-[45vh] w-auto object-contain rounded border border-slate-800 shadow"
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <a
+                    href={selectedProof.receiptDataUrl}
+                    download={selectedProof.receiptFileName || 'comprovativo-sofalabet.png'}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Descarregar Comprovativo</span>
+                  </a>
+                  <a
+                    href={selectedProof.receiptDataUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Abrir em Nova Aba</span>
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl text-center text-xs text-slate-400">
+                <FileText className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                <span>Nenhuma imagem ou talão digitalizado anexado. O depósito foi efetuado via canal de débito móvel instantâneo.</span>
+              </div>
+            )}
+
+            {/* Detailed Metadata Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs font-mono">
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Apostador:</span>
+                <strong className="text-white font-sans">{selectedProof.userName}</strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Contacto Celular:</span>
+                <strong className="text-white">{selectedProof.userPhone}</strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Montante Depositado:</span>
+                <strong className="text-emerald-400 text-sm font-sans">
+                  +{selectedProof.amount.toFixed(2)} MZN
+                </strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Método / Canal:</span>
+                <strong className="text-amber-400 font-sans">{selectedProof.method}</strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Referência do Sistema:</span>
+                <strong className="text-slate-300">{selectedProof.referenceCode}</strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-sans block">Ref / ID da Operadora:</span>
+                <strong className="text-emerald-300">{selectedProof.operatorTxId || 'Não informado'}</strong>
+              </div>
+            </div>
+
+            {/* Notes submitted by user */}
+            {selectedProof.notes && (
+              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+                <span className="text-[10px] text-slate-400 font-bold block mb-1">
+                  Observação enviada pelo Apostador:
+                </span>
+                <p className="text-slate-200 italic font-sans">"{selectedProof.notes}"</p>
+              </div>
+            )}
+
+            {/* Admin Review Notes & Actions */}
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700 space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Notas de Revisão da Administração:
+                </label>
+                <input
+                  type="text"
+                  value={reviewNotesInput}
+                  onChange={(e) => setReviewNotesInput(e.target.value)}
+                  placeholder="Ex: Talão verificado no extrato do Millennium BIM..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Estado Atual:</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    selectedProof.status === 'APPROVED'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : selectedProof.status === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {selectedProof.status}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateProofStatus(selectedProof.id, 'APPROVED', reviewNotesInput)}
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs transition-all shadow"
+                  >
+                    Aprovar Comprovativo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateProofStatus(selectedProof.id, 'REJECTED', reviewNotesInput)}
+                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white font-bold rounded-lg text-xs transition-all border border-rose-500/30"
+                  >
+                    Rejeitar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateProofStatus(selectedProof.id, 'PENDING', reviewNotesInput)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-lg text-xs transition-all border border-slate-700"
+                  >
+                    Marcar Pendente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 8: SUPABASE CLOUD & BD ================= */}
+      {activeTab === 'supabase' && (
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-extrabold text-base text-white">
+                  Integração Supabase • Base de Dados em Nuvem
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Persistência remota segura, tabelas PostgreSQL, regras de segurança RLS e sincronização de apostadores e comprovativos.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchSupabaseInfo}
+                disabled={loading}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
+                <span>Testar Ligação</span>
+              </button>
+
+              <button
+                onClick={handleSyncToSupabase}
+                disabled={syncingSupabase}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingSupabase ? 'animate-spin' : ''}`} />
+                <span>{syncingSupabase ? 'A Sincronizar...' : 'Sincronizar Dados'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Status & Diagnostics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Connection Status Card */}
+            <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400">Estado da Conexão:</span>
+                {supabaseStatus?.connected ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    CONECTADO (ONLINE)
+                  </span>
+                ) : supabaseStatus?.isConfigured ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                    CONFIGURADO (PENDENTE)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                    <HardDrive className="w-3 h-3 text-slate-400" />
+                    MODO LOCAL / EM MEMÓRIA
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-500 block font-mono">Endpoint Supabase:</span>
+                <span className="text-xs font-bold text-slate-200 block truncate font-mono mt-0.5">
+                  {supabaseStatus?.url || 'Não especificado no .env'}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Chave Anon:</span>
+                <span className={supabaseStatus?.hasAnonKey ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                  {supabaseStatus?.hasAnonKey ? '✓ Detetada' : '✗ Ausente'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Service Role Key:</span>
+                <span className={supabaseStatus?.hasServiceKey ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                  {supabaseStatus?.hasServiceKey ? '✓ Detetada' : '✗ Ausente'}
+                </span>
+              </div>
+            </div>
+
+            {/* Tables & Record Counts Card */}
+            <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700 space-y-2">
+              <span className="text-xs font-bold text-slate-300 block mb-1">
+                Registos Prontos para Sincronizar:
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Utilizadores</span>
+                  <span className="font-black text-white text-base">{users.length}</span>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Jogos de Futebol</span>
+                  <span className="font-black text-white text-base">{matches.length}</span>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Apostas Realizadas</span>
+                  <span className="font-black text-white text-base">{bets.length}</span>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Comprovativos</span>
+                  <span className="font-black text-emerald-400 text-base">{depositProofs.length}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Instruction Guide */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/30 to-slate-800/80 border border-emerald-500/20 space-y-2.5">
+              <span className="text-xs font-black text-emerald-400 block">
+                Passo a Passo de Ligação:
+              </span>
+              <ol className="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+                <li>Aceda a <strong>supabase.com</strong> e crie um projeto.</li>
+                <li>Copie o <strong>Script SQL</strong> abaixo e execute-o no <strong>SQL Editor</strong>.</li>
+                <li>Copie o URL e Chave do Projeto para o seu ficheiro <code>.env</code>.</li>
+                <li>Clique em <strong>Sincronizar Dados</strong> para migrar tudo instantaneamente.</li>
+              </ol>
+            </div>
+          </div>
+
+          {/* Diagnostic Note / Error */}
+          {supabaseStatus?.error && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Aviso de Diagnóstico:</span>
+                <span>{supabaseStatus.error}</span>
+              </div>
+            </div>
+          )}
+
+          {/* SQL Schema Viewer & Copy Action */}
+          <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+            <div className="p-3.5 sm:p-4 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-white">
+                  Script SQL de Inicialização do Supabase (schema.sql)
+                </span>
+              </div>
+
+              <button
+                onClick={handleCopySql}
+                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+              >
+                {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedSql ? 'Copiado!' : 'Copiar Script SQL'}</span>
+              </button>
+            </div>
+
+            <div className="p-4 max-h-96 overflow-y-auto font-mono text-[11px] text-slate-300 bg-slate-950 leading-relaxed select-all">
+              <pre className="whitespace-pre-wrap">{supabaseSchemaSql || '-- Carregando schema...'}</pre>
+            </div>
           </div>
         </div>
       )}

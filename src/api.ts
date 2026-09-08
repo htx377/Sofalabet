@@ -63,6 +63,26 @@ export const api = {
   // Wallet
   getWallet: () => request<{ wallet: any }>('/wallet'),
   getTransactions: () => request<{ transactions: any[] }>('/wallet/transactions'),
+  getUserDepositProofs: () => request<{ proofs: any[] }>('/wallet/deposit-proofs'),
+  deposit: (body: {
+    amount: number;
+    method: string;
+    phoneNumber?: string;
+    receiptImage?: string;
+    receiptFileName?: string;
+    receiptFileSize?: number;
+    receiptReference?: string;
+    notes?: string;
+  }) =>
+    request<{ message: string; wallet: any; transaction: any; depositProof?: any }>('/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  withdraw: (body: { amount: number; method: string; phoneNumber?: string; bankDetails?: string }) =>
+    request<{ message: string; wallet: any; transaction: any }>('/wallet/withdraw', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   virtualTopup: (amount: number, method: string) =>
     request<{ message: string; wallet: any; transaction: any }>('/wallet/topup', {
       method: 'POST',
@@ -113,4 +133,26 @@ export const api = {
   getAdminAuditLogs: () => request<{ logs: any[] }>('/admin/audit-logs'),
   getAdminBets: () => request<{ bets: any[] }>('/admin/bets'),
   getAdminTransactions: () => request<{ transactions: any[] }>('/admin/transactions'),
+  getAdminDepositProofs: () => request<{ proofs: any[] }>('/admin/deposit-proofs'),
+  updateDepositProofStatus: (id: string, status: string, reviewNotes?: string) =>
+    request<{ message: string; proof: any }>(`/admin/deposit-proofs/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reviewNotes }),
+    }),
+  getSupabaseStatus: () =>
+    request<{
+      isConfigured: boolean;
+      connected: boolean;
+      url: string | null;
+      hasServiceKey: boolean;
+      hasAnonKey: boolean;
+      error?: string | null;
+      tables?: any;
+    }>('/supabase/status'),
+  syncSupabase: () =>
+    request<{ success: boolean; message: string; details?: any }>('/supabase/sync', {
+      method: 'POST',
+    }),
+  getSupabaseSchema: () =>
+    request<{ sql: string }>('/supabase/schema'),
 };

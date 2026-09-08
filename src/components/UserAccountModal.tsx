@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { Bet, WalletTransaction } from '../types.ts';
 import { api } from '../api.ts';
+import { DepositPanel } from './DepositPanel.tsx';
+import { WithdrawalPanel } from './WithdrawalPanel.tsx';
 import {
   Wallet,
   History,
@@ -14,17 +16,18 @@ import {
   CreditCard,
   RefreshCw,
   Shield,
+  Plus,
 } from 'lucide-react';
 
 interface UserAccountModalProps {
   onClose?: () => void;
-  defaultTab?: 'wallet' | 'bets' | 'transactions';
+  defaultTab?: 'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions';
   onNavigateToAdmin?: () => void;
 }
 
 export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab = 'wallet', onNavigateToAdmin }) => {
   const { user, refreshUserData } = useAuth();
-  const [activeTab, setActiveTab] = useState<'wallet' | 'bets' | 'transactions'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions'>(defaultTab);
 
   const [bets, setBets] = useState<Bet[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -70,36 +73,42 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">{user.email} • {user.phone}</p>
-              
-              {user.role === 'ADMIN' && onNavigateToAdmin && (
-                <div className="mt-2">
-                  <button
-                    onClick={onNavigateToAdmin}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Shield className="w-3.5 h-3.5" />
-                    <span>Aceder ao Painel Administrativo</span>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Balance card */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 sm:px-5 flex items-center justify-between sm:justify-start gap-4">
+          {/* Balance card & Quick Actions */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
               <span className="text-[11px] font-medium text-slate-400 block">Saldo Disponível</span>
               <span className="text-2xl font-black text-emerald-400 tracking-tight">
                 {user.balance.toFixed(2)} <span className="text-sm font-bold text-slate-400">MZN</span>
               </span>
             </div>
-            <button
-              onClick={() => setActiveTab('transactions')}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 text-xs font-bold transition-colors flex items-center gap-1.5"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Ver Extrato</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                id="account-quick-deposit-btn"
+                onClick={() => setActiveTab('deposit')}
+                className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-98"
+              >
+                <ArrowDownLeft className="w-3.5 h-3.5" />
+                <span>Depositar</span>
+              </button>
+              <button
+                id="account-quick-withdraw-btn"
+                onClick={() => setActiveTab('withdraw')}
+                className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-black transition-all flex items-center gap-1.5 active:scale-98"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5" />
+                <span>Levantar</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('transactions')}
+                className="px-2.5 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1.5 hidden md:flex"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Extrato</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -107,6 +116,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
       {/* Tabs */}
       <div className="flex border-b border-slate-800 bg-slate-900/60 px-3 sm:px-6 overflow-x-auto scrollbar-none">
         <button
+          id="tab-wallet-overview"
           onClick={() => setActiveTab('wallet')}
           className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
             activeTab === 'wallet'
@@ -115,10 +125,37 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
           }`}
         >
           <Wallet className="w-4 h-4" />
-          <span>Carteira & Finanças</span>
+          <span>Carteira & Resumo</span>
         </button>
 
         <button
+          id="tab-deposit"
+          onClick={() => setActiveTab('deposit')}
+          className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
+            activeTab === 'deposit'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+          <span>Painel de Depósito</span>
+        </button>
+
+        <button
+          id="tab-withdraw"
+          onClick={() => setActiveTab('withdraw')}
+          className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
+            activeTab === 'withdraw'
+              ? 'border-amber-500 text-amber-400 bg-amber-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ArrowUpRight className="w-4 h-4 text-amber-400" />
+          <span>Painel de Levantamento</span>
+        </button>
+
+        <button
+          id="tab-bets"
           onClick={() => setActiveTab('bets')}
           className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
             activeTab === 'bets'
@@ -131,6 +168,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
         </button>
 
         <button
+          id="tab-transactions"
           onClick={() => setActiveTab('transactions')}
           className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
             activeTab === 'transactions'
@@ -139,7 +177,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
           }`}
         >
           <CreditCard className="w-4 h-4" />
-          <span>Extrato Financeiro (Ledger)</span>
+          <span>Extrato (Ledger)</span>
         </button>
       </div>
 
@@ -168,13 +206,29 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                       {user.balance.toFixed(2)} <span className="text-base font-bold text-slate-400">MZN</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      id="account-wallet-deposit-btn"
+                      onClick={() => setActiveTab('deposit')}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-98"
+                    >
+                      <ArrowDownLeft className="w-4 h-4" />
+                      <span>Fazer Depósito</span>
+                    </button>
+                    <button
+                      id="account-wallet-withdraw-btn"
+                      onClick={() => setActiveTab('withdraw')}
+                      className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 active:scale-98"
+                    >
+                      <ArrowUpRight className="w-4 h-4 text-amber-400" />
+                      <span>Levantar Fundos</span>
+                    </button>
                     <button
                       onClick={() => setActiveTab('transactions')}
-                      className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
                     >
                       <CreditCard className="w-4 h-4" />
-                      <span>Extrato de Movimentos</span>
+                      <span>Extrato</span>
                     </button>
                   </div>
                 </div>
@@ -288,6 +342,28 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ================= TAB: DEPOSIT PANEL ================= */}
+        {activeTab === 'deposit' && (
+          <div className="max-w-2xl mx-auto bg-slate-850/60 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-xl">
+            <DepositPanel
+              onSuccess={() => {
+                fetchData();
+              }}
+            />
+          </div>
+        )}
+
+        {/* ================= TAB: WITHDRAWAL PANEL ================= */}
+        {activeTab === 'withdraw' && (
+          <div className="max-w-2xl mx-auto bg-slate-850/60 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-xl">
+            <WithdrawalPanel
+              onSuccess={() => {
+                fetchData();
+              }}
+            />
           </div>
         )}
 

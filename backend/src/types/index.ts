@@ -20,7 +20,7 @@ export interface Wallet {
   updatedAt: string;
 }
 
-export type TransactionType = 'DEPOSIT' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT';
+export type TransactionType = 'DEPOSIT' | 'WITHDRAWAL' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT';
 export type TransactionStatus = 'COMPLETED' | 'FAILED';
 
 export interface WalletTransaction {
@@ -35,6 +35,29 @@ export interface WalletTransaction {
   description: string;
   status: TransactionStatus;
   createdAt: string;
+}
+
+export type DepositProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface DepositProof {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhone: string;
+  userEmail: string;
+  amount: number;
+  method: 'MPESA' | 'EMOLA' | 'MKESH' | 'BANK';
+  referenceCode: string;
+  operatorTxId?: string;
+  receiptFileName?: string;
+  receiptDataUrl?: string;
+  receiptFileSize?: number;
+  notes?: string;
+  status: DepositProofStatus;
+  reviewedBy?: string;
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type MatchStatus = 'DRAFT' | 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'FINISHED' | 'CANCELLED';

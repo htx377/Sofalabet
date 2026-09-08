@@ -8,6 +8,7 @@ import { WalletService } from '../services/walletService.ts';
 import { AuditService } from '../services/auditService.ts';
 import { AuthenticatedRequest } from '../middleware/auth.ts';
 import { User, AuthTokenPayload } from '../types/index.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class AuthController {
   static register(req: Request, res: Response): void {
@@ -17,21 +18,40 @@ export class AuthController {
       return;
     }
 
-    const { name, email, phone, password } = parseResult.data;
+    const { name, phone, password } = parseResult.data;
+    let { email } = parseResult.data;
 
-    if (db.getUserByEmail(email)) {
-      res.status(409).json({ error: 'Já existe uma conta associada a este endereço de email.' });
+    // Check if cell phone number already exists
+    if (db.getUserByPhone(phone)) {
+      res.status(409).json({ error: 'Já existe uma conta registada com este número de celular.' });
       return;
+    }
+
+    // Auto-generate internal mailbox if email not provided
+    const cleanDigits = phone.replace(/\D/g, '');
+    if (!email || email.trim() === '') {
+      email = `${cleanDigits}@sofalabet.mz`;
+    } else {
+      if (db.getUserByEmail(email)) {
+        res.status(409).json({ error: 'Já existe uma conta associada a este endereço de email.' });
+        return;
+      }
     }
 
     const passwordHash = bcrypt.hashSync(password, 10);
     const userId = `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
+    // Normalize phone display with +258 if valid Mozambican 9-digit
+    let formattedPhone = phone.trim();
+    if (cleanDigits.length === 9 && !formattedPhone.startsWith('+')) {
+      formattedPhone = `+258 ${cleanDigits.slice(0, 2)} ${cleanDigits.slice(2, 5)} ${cleanDigits.slice(5)}`;
+    }
+
     const newUser: User = {
       id: userId,
-      name,
+      name: name.trim(),
       email,
-      phone,
+      phone: formattedPhone,
       passwordHash,
       role: 'USER',
       isBlocked: false,
@@ -47,19 +67,25 @@ export class AuthController {
     wallet.updatedAt = new Date().toISOString();
 
     // Create deposit transaction in ledger
-    db.transactions.push({
+    const bonusTx = {
       id: `tx-${Date.now()}-reg`,
       walletId: wallet.id,
       userId,
-      type: 'DEPOSIT',
+      type: 'DEPOSIT' as const,
       amount: 1000.00,
       previousBalance: 0.00,
       nextBalance: 1000.00,
       reference: 'BÓNUS-BOAS-VINDAS',
       description: 'Depósito inicial de boas-vindas da conta em MZN',
-      status: 'COMPLETED',
+      status: 'COMPLETED' as const,
       createdAt: new Date().toISOString(),
-    });
+    };
+    db.transactions.push(bonusTx);
+
+    // Real-time synchronization with Supabase
+    supabaseService.syncUserRealtime(newUser).catch(console.error);
+    supabaseService.syncWalletRealtime(wallet).catch(console.error);
+    supabaseService.syncTransactionRealtime(bonusTx).catch(console.error);
 
     const tokenPayload: AuthTokenPayload = {
       userId: newUser.id,
@@ -91,11 +117,12 @@ export class AuthController {
       return;
     }
 
-    const { email, password } = parseResult.data;
-    const user = db.getUserByEmail(email);
+    const identifier = parseResult.data.identifier || parseResult.data.email || parseResult.data.phone || '';
+    const { password } = parseResult.data;
+    const user = db.getUserByIdentifier(identifier);
 
     if (!user) {
-      res.status(401).json({ error: 'Credenciais inválidas. Email ou password incorretos.' });
+      res.status(401).json({ error: 'Credenciais inválidas. Número de celular ou palavra-passe incorretos.' });
       return;
     }
 
@@ -106,7 +133,7 @@ export class AuthController {
 
     const isMatch = bcrypt.compareSync(password, user.passwordHash);
     if (!isMatch) {
-      res.status(401).json({ error: 'Credenciais inválidas. Email ou password incorretos.' });
+      res.status(401).json({ error: 'Credenciais inválidas. Número de celular ou palavra-passe incorretos.' });
       return;
     }
 
