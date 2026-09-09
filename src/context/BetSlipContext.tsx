@@ -15,6 +15,7 @@ interface BetSlipContextType {
   removeSelection: (selectionId: string) => void;
   clearSlip: () => void;
   setStake: (amount: number) => void;
+  updateSelectionOdds: (matchId: string, selectionId: string, newOdds: number) => void;
   placeBet: () => Promise<{ success: boolean; message?: string }>;
 }
 
@@ -51,6 +52,17 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
 
   const setStake = (amount: number) => {
     setStakeState(Math.max(0, amount));
+  };
+
+  const updateSelectionOdds = (matchId: string, selectionId: string, newOdds: number) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.matchId === matchId && item.selectionId === selectionId) {
+          return { ...item, odds: newOdds };
+        }
+        return item;
+      })
+    );
   };
 
   // Calculate cumulative odds
@@ -114,6 +126,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
         removeSelection,
         clearSlip,
         setStake,
+        updateSelectionOdds,
         placeBet,
       }}
     >

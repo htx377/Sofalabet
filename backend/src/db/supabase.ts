@@ -54,6 +54,10 @@ class SupabaseService {
           },
         });
         console.log(`[Supabase] Conectado ao endpoint em tempo real: ${this.url}`);
+        // Hidratar dados do Supabase na inicialização
+        this.pullDataFromSupabase().catch((err) => {
+          console.warn('[Supabase] Hidratação inicial:', err.message);
+        });
       } catch (err) {
         console.error('[Supabase] Erro ao inicializar cliente:', err);
         this.client = null;
@@ -179,7 +183,7 @@ class SupabaseService {
         email: user.email || null,
         password_hash: user.passwordHash,
         role: user.role,
-        is_blocked: user.isBlocked,
+        status: user.isBlocked ? 'BLOCKED' : 'ACTIVE',
         created_at: user.createdAt,
         updated_at: user.updatedAt,
       }, { onConflict: 'id' });
@@ -355,7 +359,7 @@ class SupabaseService {
         email: u.email || null,
         password_hash: u.passwordHash,
         role: u.role,
-        is_blocked: u.isBlocked,
+        status: u.isBlocked ? 'BLOCKED' : 'ACTIVE',
         created_at: u.createdAt,
         updated_at: u.updatedAt,
       }));
@@ -490,6 +494,148 @@ class SupabaseService {
       return {
         success: false,
         message: `Erro na sincronização: ${err.message}. Verifique se executou o script SQL das tabelas no Supabase.`,
+      };
+    }
+  }
+
+  /**
+   * Puxa e hidrata dados remotos do Supabase para o estado da aplicação
+   */
+  public async pullDataFromSupabase(): Promise<{ success: boolean; message: string; details?: any }> {
+    if (!this.client) {
+      return {
+        success: false,
+        message: 'Supabase não está configurado no ficheiro .env.',
+      };
+    }
+
+    try {
+      // 1. Puxar Utilizadores
+      const { data: usersData, error: usersErr } = await this.client.from('users').select('*');
+      if (!usersErr && usersData && usersData.length > 0) {
+        for (const u of usersData) {
+          dbStore.users.set(u.id, {
+            id: u.id,
+            phone: u.phone,
+            name: u.name,
+            email: u.email || '',
+            passwordHash: u.password_hash,
+            role: u.role,
+            isBlocked: u.status === 'BLOCKED',
+            createdAt: u.created_at,
+            updatedAt: u.updated_at,
+          });
+        }
+      }
+
+      // 2. Puxar Carteiras
+      const { data: walletsData, error: walletsErr } = await this.client.from('wallets').select('*');
+      if (!walletsErr && walletsData && walletsData.length > 0) {
+        for (const w of walletsData) {
+          dbStore.wallets.set(w.user_id, {
+            id: `wal-${w.user_id}`,
+            userId: w.user_id,
+            balance: Number(w.balance),
+            lockedBalance: 0,
+            updatedAt: w.updated_at,
+          });
+        }
+      }
+
+      // 3. Puxar Jogos (Matches)
+      const { data: matchesData, error: matchesErr } = await this.client.from('matches').select('*');
+      if (!matchesErr && matchesData && matchesData.length > 0) {
+        for (const m of matchesData) {
+          dbStore.matches.set(m.id, {
+            id: m.id,
+            competitionId: m.competition_id || '',
+            competitionName: m.competition_name,
+            competitionCategory: m.competition_category,
+            homeTeam: m.home_team,
+            awayTeam: m.away_team,
+            kickoffDate: m.kickoff_date,
+            kickoffTime: m.kickoff_time,
+            status: m.status,
+            homeScore: m.home_score,
+            awayScore: m.away_score,
+            markets: m.markets || [],
+            createdAt: m.created_at,
+            updatedAt: m.updated_at,
+          });
+        }
+      }
+
+      // 4. Puxar Apostas (Bets)
+      const { data: betsData, error: betsErr } = await this.client.from('bets').select('*');
+      if (!betsErr && betsData && betsData.length > 0) {
+        for (const b of betsData) {
+          const u = dbStore.users.get(b.user_id);
+          dbStore.bets.set(b.id, {
+            id: b.id,
+            userId: b.user_id,
+            userName: u?.name || 'Apostador SofalaBet',
+            userEmail: u?.email || '',
+            type: b.type,
+            stake: Number(b.stake),
+            totalOdds: Number(b.total_odds),
+            potentialReturn: Number(b.potential_win),
+            status: b.status,
+            items: b.selections || [],
+            createdAt: b.placed_at,
+            settledAt: b.settled_at,
+          });
+        }
+      }
+
+      // 5. Puxar Comprovativos de Depósito
+      const { data: proofsData, error: proofsErr } = await this.client.from('deposit_proofs').select('*');
+      if (!proofsErr && proofsData && proofsData.length > 0) {
+        for (const p of proofsData) {
+          const exists = dbStore.depositProofs.find((item) => item.id === p.id);
+          const u = dbStore.users.get(p.user_id);
+          const proofMethod: 'MPESA' | 'EMOLA' | 'MKESH' | 'BANK' =
+            p.method === 'BANK_TRANSFER' || p.method === 'BANK' ? 'BANK' : p.method;
+          const proofObj: DepositProof = {
+            id: p.id,
+            userId: p.user_id,
+            userName: p.user_name,
+            userPhone: p.user_phone,
+            userEmail: u?.email || '',
+            amount: Number(p.amount),
+            method: proofMethod,
+            referenceCode: p.reference_code,
+            operatorTxId: p.operator_tx_id,
+            receiptDataUrl: p.receipt_data_url,
+            receiptFileName: p.receipt_file_name,
+            notes: p.notes,
+            status: p.status,
+            reviewNotes: p.review_notes,
+            createdAt: p.created_at,
+            updatedAt: p.reviewed_at || p.created_at,
+          };
+          if (!exists) {
+            dbStore.depositProofs.push(proofObj);
+          }
+        }
+      }
+
+      console.log('[Supabase Pull] Dados hidratados do Supabase com sucesso!');
+      return {
+        success: true,
+        message: 'Dados remotos do Supabase carregados com sucesso para a aplicação!',
+        details: {
+          users: usersData?.length || 0,
+          wallets: walletsData?.length || 0,
+          matches: matchesData?.length || 0,
+          bets: betsData?.length || 0,
+          proofs: proofsData?.length || 0,
+        },
+      };
+    } catch (err: any) {
+      console.error('[Supabase Pull Error]:', err);
+      return {
+        success: false,
+        message: `Erro ao puxar dados do Supabase: ${err.message}`,
       };
     }
   }

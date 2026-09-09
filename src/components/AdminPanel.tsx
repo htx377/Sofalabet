@@ -45,6 +45,7 @@ import {
   Check,
   Terminal,
   HardDrive,
+  Sparkles,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -113,6 +114,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   // User search
   const [userSearch, setUserSearch] = useState('');
 
+  // Safe In-App Modals (replacing window.confirm and window.prompt)
+  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<User | null>(null);
+  const [tempPasswordInput, setTempPasswordInput] = useState('Sofala123!');
+  const [copiedTempPassword, setCopiedTempPassword] = useState(false);
+  const [isDeletingMatch, setIsDeletingMatch] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  // Match filters
+  const [matchSearch, setMatchSearch] = useState('');
+  const [matchStatusFilter, setMatchStatusFilter] = useState<'ALL' | 'OPEN' | 'SUSPENDED' | 'FINISHED' | 'CANCELLED'>('ALL');
+  const [matchCategoryFilter, setMatchCategoryFilter] = useState<'ALL' | 'MOCAMBOLA' | 'PROVINCIAL' | 'DISTRITAL'>('ALL');
+
   // Supabase states
   const [supabaseStatus, setSupabaseStatus] = useState<{
     isConfigured: boolean;
@@ -125,6 +139,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   } | null>(null);
   const [supabaseSchemaSql, setSupabaseSchemaSql] = useState<string>('');
   const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [pullingSupabase, setPullingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
   const fetchSupabaseInfo = async () => {
@@ -158,6 +173,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
       notifyError(err.message || 'Falha ao sincronizar dados com o Supabase');
     } finally {
       setSyncingSupabase(false);
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    setPullingSupabase(true);
+    setActionSuccess(null);
+    setActionError(null);
+    try {
+      const res = await api.pullSupabase();
+      if (res.success) {
+        notifySuccess(res.message);
+        await loadData();
+      } else {
+        notifyError(res.message);
+      }
+    } catch (err: any) {
+      notifyError(err.message || 'Falha ao puxar dados do Supabase');
+    } finally {
+      setPullingSupabase(false);
     }
   };
 
@@ -315,15 +349,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     }
   };
 
-  // 7. Adjust Balance
-  const handleDeleteMatch = async (matchId: string) => {
-    if (!window.confirm('Tem a certeza que deseja excluir permanentemente este jogo?')) return;
+  // 7. Delete Match (Safe In-App Action)
+  const handleConfirmDeleteMatch = async () => {
+    if (!matchToDelete) return;
+    setIsDeletingMatch(true);
     try {
-      const res = await api.deleteMatch(matchId);
+      const res = await api.deleteMatch(matchToDelete.id);
       notifySuccess(res.message);
+      setMatchToDelete(null);
       await loadData();
     } catch (err: any) {
       notifyError(err.message || 'Erro ao excluir jogo');
+    } finally {
+      setIsDeletingMatch(false);
     }
   };
 
@@ -337,17 +375,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     }
   };
 
-  const handleResetPassword = async (userId: string) => {
-    const customPass = window.prompt('Introduza a nova senha temporária para o utilizador:', 'Sofala123!');
-    if (!customPass) return;
+  // 8. Reset Password (Safe In-App Modal)
+  const handleConfirmResetPassword = async () => {
+    if (!userToResetPassword) return;
+    if (!tempPasswordInput.trim()) {
+      notifyError('Por favor introduza a nova palavra-passe temporária.');
+      return;
+    }
+    setIsResettingPassword(true);
     try {
-      const res = await api.resetUserPassword(userId, customPass);
-      notifySuccess(`Palavra-passe alterada com sucesso! Senha: "${res.tempPassword}"`);
+      const res = await api.resetUserPassword(userToResetPassword.id, tempPasswordInput.trim());
+      notifySuccess(`Palavra-passe alterada com sucesso! Nova senha: "${res.tempPassword}"`);
+      setUserToResetPassword(null);
       await loadData();
     } catch (err: any) {
       notifyError(err.message || 'Erro ao redefinir senha');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
+
+  const filteredMatches = matches.filter((m) => {
+    const term = matchSearch.toLowerCase().trim();
+    const matchesQuery =
+      !term ||
+      m.homeTeam.toLowerCase().includes(term) ||
+      m.awayTeam.toLowerCase().includes(term) ||
+      m.competitionName.toLowerCase().includes(term);
+
+    if (!matchesQuery) return false;
+    if (matchStatusFilter !== 'ALL' && m.status !== matchStatusFilter) return false;
+    if (matchCategoryFilter !== 'ALL') {
+      const isMocambola = m.competitionCategory === 'MOCAMBOLA' || m.competitionName.toLowerCase().includes('moçambola');
+      const isProvincial = m.competitionCategory === 'PROVINCIAL' || m.competitionName.toLowerCase().includes('provincial');
+      const isDistrital = m.competitionCategory === 'DISTRITAL' || m.competitionName.toLowerCase().includes('distrital');
+      if (matchCategoryFilter === 'MOCAMBOLA' && !isMocambola) return false;
+      if (matchCategoryFilter === 'PROVINCIAL' && !isProvincial) return false;
+      if (matchCategoryFilter === 'DISTRITAL' && !isDistrital) return false;
+    }
+    return true;
+  });
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -523,6 +590,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             </div>
           </div>
 
+          {/* Quick Actions Panel for Administrator */}
+          <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-extrabold text-sm text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Ações Rápidas de Gestão
+              </span>
+              <span className="text-[11px] text-slate-400">Atalhos diretos</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              <button
+                id="overview-quick-create-match"
+                onClick={() => setShowCreateMatch(true)}
+                className="p-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-left transition-all group"
+              >
+                <Plus className="w-4 h-4 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="block text-xs font-bold text-white">Criar Jogo</span>
+                <span className="text-[10px] text-emerald-300/80">Novo evento 1X2</span>
+              </button>
+
+              <button
+                id="overview-quick-settle"
+                onClick={() => setActiveTab('results')}
+                className="p-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-left transition-all group"
+              >
+                <CheckCircle className="w-4 h-4 text-cyan-400 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="block text-xs font-bold text-white">Liquidar Jogos</span>
+                <span className="text-[10px] text-cyan-300/80">Inserir resultados</span>
+              </button>
+
+              <button
+                id="overview-quick-deposits"
+                onClick={() => setActiveTab('deposits')}
+                className="p-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-left transition-all group relative"
+              >
+                <ArrowDownLeft className="w-4 h-4 text-amber-400 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="block text-xs font-bold text-white">Comprovativos</span>
+                <span className="text-[10px] text-amber-300/80">
+                  {depositProofs.filter(p => p.status === 'PENDING').length} pendentes
+                </span>
+                {depositProofs.filter(p => p.status === 'PENDING').length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                )}
+              </button>
+
+              <button
+                id="overview-quick-users"
+                onClick={() => setActiveTab('users')}
+                className="p-3 rounded-xl bg-slate-750 hover:bg-slate-700 border border-slate-650 text-left transition-all group"
+              >
+                <Users className="w-4 h-4 text-slate-300 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="block text-xs font-bold text-white">Utilizadores</span>
+                <span className="text-[10px] text-slate-400">Saldos & risco</span>
+              </button>
+
+              <button
+                id="overview-quick-supabase"
+                onClick={() => setActiveTab('supabase')}
+                className="p-3 rounded-xl bg-slate-750 hover:bg-slate-700 border border-slate-650 text-left transition-all group"
+              >
+                <Database className="w-4 h-4 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
+                <span className="block text-xs font-bold text-white">Supabase BD</span>
+                <span className="text-[10px] text-slate-400">Sincronização</span>
+              </button>
+            </div>
+          </div>
+
           {/* Quick instructions for administrator */}
           <div className="bg-slate-800/40 border border-slate-700/80 rounded-2xl p-4 sm:p-5 space-y-2">
             <h3 className="font-extrabold text-sm text-white">Manual Operacional do Administrador</h3>
@@ -538,15 +672,85 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
       {/* ================= TAB 2: MATCHES MANAGEMENT ================= */}
       {activeTab === 'matches' && (
         <div className="p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-base text-white">Jogos Registados no Sistema ({matches.length})</h3>
-            <button
-              id="admin-create-match-inline-btn"
-              onClick={() => setShowCreateMatch(true)}
-              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl"
-            >
-              + Criar Jogo
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-base text-white">
+                Jogos Registados no Sistema ({filteredMatches.length} de {matches.length})
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Pesquise, filtre por estado ou campeonato, altere odds e administre confrontos.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative w-full sm:w-60">
+                <input
+                  type="text"
+                  placeholder="Buscar jogo ou equipa..."
+                  value={matchSearch}
+                  onChange={(e) => setMatchSearch(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 w-full focus:outline-none focus:border-emerald-500"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
+              </div>
+
+              <button
+                id="admin-create-match-inline-btn"
+                onClick={() => setShowCreateMatch(true)}
+                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl whitespace-nowrap shadow flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Criar Jogo</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filters Bar: Status & Category */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 mr-1">Estado:</span>
+              {[
+                { id: 'ALL', label: `Todos (${matches.length})` },
+                { id: 'OPEN', label: `Abertos (${matches.filter(m => m.status === 'OPEN').length})` },
+                { id: 'SUSPENDED', label: `Suspensos (${matches.filter(m => m.status === 'SUSPENDED').length})` },
+                { id: 'FINISHED', label: `Terminados (${matches.filter(m => m.status === 'FINISHED').length})` },
+                { id: 'CANCELLED', label: `Cancelados (${matches.filter(m => m.status === 'CANCELLED').length})` },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  onClick={() => setMatchStatusFilter(st.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                    matchStatusFilter === st.id
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 mr-1">Nível:</span>
+              {[
+                { id: 'ALL', label: 'Todos' },
+                { id: 'MOCAMBOLA', label: 'Moçambola' },
+                { id: 'PROVINCIAL', label: 'Provincial' },
+                { id: 'DISTRITAL', label: 'Distrital' },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setMatchCategoryFilter(cat.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                    matchCategoryFilter === cat.id
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -562,7 +766,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 font-medium">
-                {matches.map((m) => {
+                {filteredMatches.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                      Nenhum jogo encontrado com os filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMatches.map((m) => {
                   const mkt = m.markets.find((x) => x.type === '1X2');
                   const h = mkt?.selections.find((s) => s.outcome === '1')?.odds;
                   const d = mkt?.selections.find((s) => s.outcome === 'X')?.odds;
@@ -666,7 +877,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                           </>
                         )}
                         <button
-                          onClick={() => handleDeleteMatch(m.id)}
+                          onClick={() => setMatchToDelete(m)}
                           title="Excluir Jogo"
                           className="p-1 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded border border-slate-700 hover:border-rose-500/30 transition-colors"
                         >
@@ -675,7 +886,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -684,7 +895,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
       {/* ================= TAB 3: RESULTS & SETTLEMENT ================= */}
       {activeTab === 'results' && (
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div>
             <h3 className="font-extrabold text-base text-white">Introdução de Resultados & Liquidação de Prémios</h3>
             <p className="text-xs text-slate-400 mt-1">
@@ -729,7 +940,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
       {/* ================= TAB 4: USERS MANAGEMENT (SUPER ADMIN) ================= */}
       {activeTab === 'users' && (
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -867,7 +1078,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
                       {/* Reset Password */}
                       <button
-                        onClick={() => handleResetPassword(u.id)}
+                        onClick={() => {
+                          setUserToResetPassword(u);
+                          setTempPasswordInput('Sofala123!');
+                          setCopiedTempPassword(false);
+                        }}
                         className="p-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg border border-slate-700"
                         title="Redefinir Palavra-passe do utilizador"
                       >
@@ -884,7 +1099,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
       {/* ================= TAB 5: GLOBAL BETS ================= */}
       {activeTab === 'bets' && (
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <h3 className="font-extrabold text-base text-white">Todas as Apostas na Plataforma ({bets.length})</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -938,7 +1153,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
       {/* ================= TAB 6: GLOBAL LEDGER TRANSACTIONS ================= */}
       {activeTab === 'transactions' && (
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-extrabold text-base text-white">Livro-Razão Financeiro Global ({transactions.length})</h3>
@@ -1013,7 +1228,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
 
       {/* ================= TAB 6: AUDIT LOGS ================= */}
       {activeTab === 'audit' && (
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div>
             <h3 className="font-extrabold text-base text-white">Registo Central de Auditoria</h3>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1459,12 +1674,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
               </button>
 
               <button
+                onClick={handlePullFromSupabase}
+                disabled={pullingSupabase}
+                title="Puxar utilizadores, jogos e dados criados no Supabase"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${pullingSupabase ? 'animate-spin text-emerald-400' : ''}`} />
+                <span>{pullingSupabase ? 'A Puxar...' : 'Importar do Supabase'}</span>
+              </button>
+
+              <button
                 onClick={handleSyncToSupabase}
                 disabled={syncingSupabase}
                 className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-all"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncingSupabase ? 'animate-spin' : ''}`} />
-                <span>{syncingSupabase ? 'A Sincronizar...' : 'Sincronizar Dados'}</span>
+                <span>{syncingSupabase ? 'A Sincronizar...' : 'Enviar para Supabase'}</span>
               </button>
             </div>
           </div>
@@ -1661,6 +1886,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                 </div>
               </div>
 
+              {/* Quick Club Suggestions */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-slate-400">Sugestões de Clubes Populares:</span>
+                  <span className="text-[10px] text-slate-500">Clique para preencher</span>
+                </div>
+                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto pr-1">
+                  {[
+                    'Costa do Sol',
+                    'Ferroviário de Maputo',
+                    'Ferroviário da Beira',
+                    'Black Bulls',
+                    'UD Songo',
+                    'Desportivo de Nacala',
+                    'Textáfrica',
+                    'Ferroviário de Nampula',
+                    'Brera Tchumene',
+                    'Baía de Pemba',
+                    'Ferroviário de Lichinga',
+                    'Ferroviário de Muanza',
+                  ].map((team) => (
+                    <button
+                      key={team}
+                      type="button"
+                      onClick={() => {
+                        if (!newHomeTeam) {
+                          setNewHomeTeam(team);
+                        } else if (!newAwayTeam && newHomeTeam !== team) {
+                          setNewAwayTeam(team);
+                        } else {
+                          setNewHomeTeam(team);
+                        }
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] transition-colors"
+                    >
+                      + {team}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Data do Jogo</label>
@@ -1671,6 +1937,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                     onChange={(e) => setNewKickoffDate(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   />
+                  {/* Quick date presets */}
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setNewKickoffDate(new Date().toISOString().split('T')[0])}
+                      className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded border border-slate-700"
+                    >
+                      Hoje
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 1);
+                        setNewKickoffDate(d.toISOString().split('T')[0]);
+                      }}
+                      className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded border border-slate-700"
+                    >
+                      Amanhã
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        const day = d.getDay();
+                        const diff = (6 - day + 7) % 7 || 7;
+                        d.setDate(d.getDate() + diff);
+                        setNewKickoffDate(d.toISOString().split('T')[0]);
+                      }}
+                      className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded border border-slate-700"
+                    >
+                      Sábado
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">Hora de Início</label>
@@ -1956,6 +2256,202 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
         }}
         onUserUpdated={loadData}
       />
+
+      {/* ================= MODAL 7: CONFIRM DELETE MATCH ================= */}
+      {matchToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2 text-rose-400">
+                <Trash2 className="w-5 h-5" />
+                <h3 className="font-extrabold text-base text-white">Excluir Jogo Permanentemente</h3>
+              </div>
+              <button
+                onClick={() => setMatchToDelete(null)}
+                disabled={isDeletingMatch}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tem a certeza que deseja remover este jogo da base de dados? Esta ação é irreversível e o confronto não estará mais visível para apostas.
+              </p>
+
+              <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700/80 space-y-1.5">
+                <div className="text-[11px] text-emerald-400 font-bold uppercase tracking-wider">
+                  {matchToDelete.competitionName}
+                </div>
+                <div className="text-sm font-extrabold text-white">
+                  {matchToDelete.homeTeam} <span className="text-slate-400 font-normal">vs</span> {matchToDelete.awayTeam}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Data: {matchToDelete.kickoffDate} às {matchToDelete.kickoffTime} • Estado: <span className="font-bold text-slate-300">{matchToDelete.status}</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] text-rose-300">
+                <strong>Atenção:</strong> Se existirem apostas pendentes neste jogo, elas serão mantidas no histórico mas o mercado não poderá ser liquidado automaticamente.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setMatchToDelete(null)}
+                disabled={isDeletingMatch}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteMatch}
+                disabled={isDeletingMatch}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-600/20 flex items-center gap-1.5 transition-all"
+              >
+                {isDeletingMatch ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>A Excluir...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirmar Exclusão</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 8: RESET PASSWORD ================= */}
+      {userToResetPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 text-white space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2 text-cyan-400">
+                <Key className="w-5 h-5" />
+                <h3 className="font-extrabold text-base text-white">Redefinir Palavra-passe</h3>
+              </div>
+              <button
+                onClick={() => setUserToResetPassword(null)}
+                disabled={isResettingPassword}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Defina uma nova palavra-passe temporária para o apostador aceder à sua conta.
+              </p>
+
+              <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/80 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Utilizador:</span>
+                  <span className="font-bold text-white">{userToResetPassword.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Email:</span>
+                  <span className="font-mono text-slate-200">{userToResetPassword.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Telemóvel:</span>
+                  <span className="font-mono text-slate-200">{userToResetPassword.phone}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Nova Palavra-passe Temporária:
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tempPasswordInput}
+                    onChange={(e) => setTempPasswordInput(e.target.value)}
+                    placeholder="Ex: Sofala123!"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(tempPasswordInput);
+                      setCopiedTempPassword(true);
+                      setTimeout(() => setCopiedTempPassword(false), 2500);
+                    }}
+                    title="Copiar para partilhar com o cliente"
+                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors flex-shrink-0"
+                  >
+                    {copiedTempPassword ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                  <span>Sugestões rápidas:</span>
+                  <button
+                    type="button"
+                    onClick={() => setTempPasswordInput('Sofala123!')}
+                    className="hover:text-cyan-400 underline"
+                  >
+                    Sofala123!
+                  </button>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={() => setTempPasswordInput('Mocambique2025!')}
+                    className="hover:text-cyan-400 underline"
+                  >
+                    Mocambique2025!
+                  </button>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={() => setTempPasswordInput('BeiraWinner99#')}
+                    className="hover:text-cyan-400 underline"
+                  >
+                    BeiraWinner99#
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setUserToResetPassword(null)}
+                disabled={isResettingPassword}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetPassword}
+                disabled={isResettingPassword}
+                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transition-all"
+              >
+                {isResettingPassword ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>A Gravar...</span>
+                  </>
+                ) : (
+                  <>
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Gravar Nova Palavra-passe</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

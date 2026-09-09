@@ -73,13 +73,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   };
 
-  const quickFillAdmin = () => {
-    setMode('login');
-    setLoginIdentifier('admin@example.com');
-    setPassword('Admin123!ChangeMe');
-    setError(null);
-  };
-
   const quickFillUser = () => {
     setMode('login');
     setLoginIdentifier('+258 84 123 4567');
@@ -311,7 +304,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         </form>
 
         {/* Quick Access Bar */}
-        <div className="mt-6 pt-4 border-t border-slate-800">
+        <div className="mt-6 pt-4 border-t border-slate-800 space-y-2">
           <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
             Acesso Rápido de Testes
           </p>

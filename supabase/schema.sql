@@ -140,3 +140,18 @@ CREATE POLICY "Acesso completo para service role wallets" ON wallets FOR ALL USI
 CREATE POLICY "Acesso completo para service role transactions" ON wallet_transactions FOR ALL USING (true);
 CREATE POLICY "Acesso completo para service role bets" ON bets FOR ALL USING (true);
 CREATE POLICY "Acesso completo para service role proofs" ON deposit_proofs FOR ALL USING (true);
+
+-- DADOS INICIAIS (COMPETIÇÕES MOÇAMBICANAS OFICIAIS)
+INSERT INTO competitions (id, name, country, code, category) VALUES
+    ('comp-mocambola', 'Moçambola', 'Moçambique (Nacional)', 'MOC', 'MOCAMBOLA'),
+    ('comp-prov-sofala', 'Campeonato Provincial de Sofala', 'Sofala, Moçambique', 'CPS', 'PROVINCIAL'),
+    ('comp-prov-manica', 'Campeonato Provincial de Manica', 'Manica, Moçambique', 'CPM', 'PROVINCIAL'),
+    ('comp-prov-nampula', 'Campeonato Provincial de Nampula', 'Nampula, Moçambique', 'CPN', 'PROVINCIAL'),
+    ('comp-prov-maputo', 'Campeonato Provincial de Maputo', 'Maputo, Moçambique', 'CPMP', 'PROVINCIAL'),
+    ('comp-dist-beira', 'Campeonato Distrital da Beira', 'Distrito da Beira, Sofala', 'CDB', 'DISTRITAL'),
+    ('comp-dist-dondo', 'Campeonato Distrital do Dondo', 'Distrito do Dondo, Sofala', 'CDD', 'DISTRITAL'),
+    ('comp-dist-nhamatanda', 'Campeonato Distrital de Nhamatanda', 'Distrito de Nhamatanda, Sofala', 'CDN', 'DISTRITAL'),
+    ('comp-dist-marromeu', 'Campeonato Distrital de Marromeu', 'Distrito de Marromeu, Sofala', 'CDM', 'DISTRITAL'),
+    ('comp-dist-muanza', 'Campeonato Distrital de Muanza', 'Distrito de Muanza, Sofala', 'CDMU', 'DISTRITAL'),
+    ('comp-dist-cheringoma', 'Campeonato Distrital de Cheringoma', 'Distrito de Cheringoma, Sofala', 'CDCH', 'DISTRITAL')
+ON CONFLICT (id) DO NOTHING;

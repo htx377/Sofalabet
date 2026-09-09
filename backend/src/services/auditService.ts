@@ -1,5 +1,6 @@
 import { db } from '../db/store.ts';
 import { AuditLog } from '../types/index.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class AuditService {
   static log(
@@ -12,7 +13,7 @@ export class AuditService {
     newValue?: any,
     ip: string = 'internal'
   ): AuditLog {
-    return db.addAuditLog({
+    const logEntry = db.addAuditLog({
       adminId,
       adminEmail,
       action,
@@ -22,6 +23,11 @@ export class AuditService {
       newValue: newValue !== undefined ? (typeof newValue === 'string' ? newValue : JSON.stringify(newValue)) : undefined,
       ip,
     });
+
+    // Real-time synchronization with Supabase
+    supabaseService.syncAuditLogRealtime(logEntry).catch(console.error);
+
+    return logEntry;
   }
 
   static getLogs(limit: number = 100): AuditLog[] {

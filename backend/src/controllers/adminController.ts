@@ -14,6 +14,7 @@ import {
   balanceAdjustmentSchema,
 } from '../validators/schemas.ts';
 import { Money } from '../utils/money.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class AdminController {
   static getDashboardStats(req: AuthenticatedRequest, res: Response): void {
@@ -235,6 +236,9 @@ export class AdminController {
       req.ip
     );
 
+    // Real-time synchronization with Supabase
+    supabaseService.syncUserRealtime(targetUser).catch(console.error);
+
     res.status(200).json({
       message: `Utilizador ${targetUser.isBlocked ? 'bloqueado' : 'desbloqueado'} com sucesso.`,
       user: {
@@ -399,6 +403,9 @@ export class AdminController {
       req.ip
     );
 
+    // Real-time synchronization with Supabase
+    supabaseService.syncUserRealtime(targetUser).catch(console.error);
+
     res.status(200).json({
       message: `Palavra-passe do utilizador ${targetUser.email} redefinida com sucesso para "${newPassword}".`,
       tempPassword: newPassword,
@@ -455,6 +462,9 @@ export class AdminController {
       req.ip
     );
 
+    // Real-time synchronization with Supabase
+    supabaseService.deleteMatchRealtime(id).catch(console.error);
+
     res.status(200).json({
       message: `Jogo "${match.homeTeam} vs ${match.awayTeam}" excluído com sucesso do sistema.`,
     });
@@ -503,6 +513,11 @@ export class AdminController {
       { status, reviewNotes },
       req.ip
     );
+
+    // Real-time synchronization with Supabase
+    if (updated) {
+      supabaseService.syncDepositProofRealtime(updated).catch(console.error);
+    }
 
     res.status(200).json({
       message: `Comprovativo de depósito atualizado para ${status}.`,

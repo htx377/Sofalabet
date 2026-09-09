@@ -4,6 +4,7 @@ import { Money } from '../utils/money.ts';
 import { config } from '../config/index.ts';
 import { WalletService } from './walletService.ts';
 import { betMutex } from '../utils/mutex.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class BetService {
   static async placeBet(params: {
@@ -140,6 +141,9 @@ export class BetService {
       };
 
       db.bets.set(betId, bet);
+
+      // Real-time synchronization with Supabase
+      supabaseService.syncBetRealtime(bet).catch(console.error);
 
       return bet;
     });

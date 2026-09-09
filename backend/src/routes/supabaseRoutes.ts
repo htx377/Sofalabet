@@ -19,7 +19,7 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
-// Sincronizar dados em memória/locais com o Supabase
+// Sincronizar dados em memória/locais com o Supabase (Push)
 router.post('/sync', async (req: Request, res: Response) => {
   try {
     const result = await supabaseService.syncLocalDataToSupabase();
@@ -31,6 +31,22 @@ router.post('/sync', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Falha ao sincronizar com o Supabase',
+    });
+  }
+});
+
+// Importar e hidratar dados do Supabase para a aplicação (Pull)
+router.post('/pull', async (req: Request, res: Response) => {
+  try {
+    const result = await supabaseService.pullDataFromSupabase();
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Falha ao importar dados do Supabase',
     });
   }
 });

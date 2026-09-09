@@ -3,6 +3,7 @@ import { Match, Bet } from '../types/index.ts';
 import { WalletService } from './walletService.ts';
 import { AuditService } from './auditService.ts';
 import { Money } from '../utils/money.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class SettlementService {
   /**
@@ -133,6 +134,14 @@ export class SettlementService {
       ip
     );
 
+    // Real-time synchronization with Supabase
+    supabaseService.syncMatchRealtime(match).catch(console.error);
+    for (const bet of db.bets.values()) {
+      if (bet.items.some((i) => i.matchId === matchId)) {
+        supabaseService.syncBetRealtime(bet).catch(console.error);
+      }
+    }
+
     return { match, settledBetsCount, wonBetsCount, totalPayout };
   }
 
@@ -221,6 +230,14 @@ export class SettlementService {
       { status: 'CANCELLED', reason, refundedBetsCount, totalRefunded },
       ip
     );
+
+    // Real-time synchronization with Supabase
+    supabaseService.syncMatchRealtime(match).catch(console.error);
+    for (const bet of db.bets.values()) {
+      if (bet.items.some((i) => i.matchId === matchId)) {
+        supabaseService.syncBetRealtime(bet).catch(console.error);
+      }
+    }
 
     return { match, refundedBetsCount, totalRefunded };
   }

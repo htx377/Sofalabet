@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useRealtime } from '../context/RealtimeContext.tsx';
 import { Bet, WalletTransaction } from '../types.ts';
 import { api } from '../api.ts';
 import { DepositPanel } from './DepositPanel.tsx';
@@ -17,6 +18,7 @@ import {
   RefreshCw,
   Shield,
   Plus,
+  Radio,
 } from 'lucide-react';
 
 interface UserAccountModalProps {
@@ -27,11 +29,13 @@ interface UserAccountModalProps {
 
 export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab = 'wallet', onNavigateToAdmin }) => {
   const { user, refreshUserData } = useAuth();
+  const { isLiveConnected, onBetChange } = useRealtime();
   const [activeTab, setActiveTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions'>(defaultTab);
 
   const [bets, setBets] = useState<Bet[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(false);
+  const [recentUpdatedBetId, setRecentUpdatedBetId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
@@ -53,6 +57,43 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
   useEffect(() => {
     fetchData();
   }, [user, activeTab]);
+
+  // Listener em tempo real para atualização automática de apostas e estados (WON, LOST, PENDING, VOID)
+  useEffect(() => {
+    const unsubscribe = onBetChange((updatedBet, eventType) => {
+      console.log('[UserAccountModal Realtime] Aposta atualizada via Supabase:', updatedBet.id, updatedBet.status);
+
+      // Se a aposta pertencer a este utilizador
+      if (user && updatedBet.userId === user.id) {
+        setRecentUpdatedBetId(updatedBet.id);
+        setTimeout(() => {
+          setRecentUpdatedBetId((curr) => (curr === updatedBet.id ? null : curr));
+        }, 4000);
+
+        setBets((prevBets) => {
+          if (eventType === 'DELETE') {
+            return prevBets.filter((b) => b.id !== updatedBet.id);
+          }
+          const index = prevBets.findIndex((b) => b.id === updatedBet.id);
+          if (index >= 0) {
+            const next = [...prevBets];
+            next[index] = updatedBet;
+            return next;
+          } else {
+            return [updatedBet, ...prevBets];
+          }
+        });
+
+        // Recarregar carteira e transações se a aposta foi resolvida
+        refreshUserData().catch(console.error);
+        api.getTransactions().then((txRes) => setTransactions(txRes.transactions)).catch(console.error);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user, onBetChange, refreshUserData]);
 
   if (!user) return null;
 
@@ -103,7 +144,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
               </button>
               <button
                 onClick={() => setActiveTab('transactions')}
-                className="px-2.5 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1.5 hidden md:flex"
+                className="px-2.5 py-2 rounded-xl bg-slate-855 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1.5 hidden md:flex"
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 <span>Extrato</span>
@@ -111,6 +152,29 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
             </div>
           </div>
         </div>
+
+        {/* Super Admin Access Banner */}
+        {user.role === 'ADMIN' && onNavigateToAdmin && (
+          <div className="mt-4 p-3 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-slate-900 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-xs text-white block">Privilégios de Administrador Ativos</span>
+                <span className="text-[11px] text-amber-300/80 block">Acesso total à gestão de jogos, odds, apostas e auditoria</span>
+              </div>
+            </div>
+            <button
+              id="account-admin-panel-btn"
+              onClick={onNavigateToAdmin}
+              className="w-full sm:w-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 shrink-0 transition-all active:scale-98"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Painel Admin</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -371,7 +435,15 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
         {activeTab === 'bets' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between pb-2">
-              <p className="text-xs text-slate-400">Consulte o histórico de todas as apostas efetuadas nesta conta</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-400">Consulte o histórico de todas as apostas efetuadas nesta conta</p>
+                {isLiveConnected && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 animate-pulse">
+                    <Radio className="w-2.5 h-2.5 text-emerald-400" />
+                    <span>Tempo Real</span>
+                  </span>
+                )}
+              </div>
               <button
                 onClick={fetchData}
                 className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
@@ -388,22 +460,33 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                 <p className="text-xs text-slate-500">Navegue pelos jogos disponíveis e selecione as suas equipas favoritas.</p>
               </div>
             ) : (
-              bets.map((bet) => (
-                <div
-                  key={bet.id}
-                  className="bg-slate-800/70 border border-slate-700/80 rounded-2xl p-4 space-y-3"
-                >
-                  {/* Bet Top bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-slate-400 text-[11px]">#{bet.id.substring(0, 12)}</span>
-                      <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-700 text-slate-300">
-                        {bet.type}
-                      </span>
-                      <span className="text-slate-400 text-[11px]">
-                        {new Date(bet.createdAt).toLocaleString('pt-PT')}
-                      </span>
-                    </div>
+              bets.map((bet) => {
+                const isJustUpdated = recentUpdatedBetId === bet.id;
+                return (
+                  <div
+                    key={bet.id}
+                    className={`bg-slate-800/70 border rounded-2xl p-4 space-y-3 transition-all duration-500 ${
+                      isJustUpdated
+                        ? 'border-emerald-400/80 shadow-lg shadow-emerald-500/20 bg-slate-800/95 ring-1 ring-emerald-400/50'
+                        : 'border-slate-700/80'
+                    }`}
+                  >
+                    {/* Bet Top bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400 text-[11px]">#{bet.id.substring(0, 12)}</span>
+                        <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-700 text-slate-300">
+                          {bet.type}
+                        </span>
+                        {isJustUpdated && (
+                          <span className="px-1.5 py-0.5 rounded font-black text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                            RESOLVIDA AGORA
+                          </span>
+                        )}
+                        <span className="text-slate-400 text-[11px]">
+                          {new Date(bet.createdAt).toLocaleString('pt-PT')}
+                        </span>
+                      </div>
 
                     {/* Status Badge */}
                     <div>
@@ -473,8 +556,9 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                     </div>
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })
+          )}
           </div>
         )}
 

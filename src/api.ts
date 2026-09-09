@@ -153,6 +153,10 @@ export const api = {
     request<{ success: boolean; message: string; details?: any }>('/supabase/sync', {
       method: 'POST',
     }),
+  pullSupabase: () =>
+    request<{ success: boolean; message: string; details?: any }>('/supabase/pull', {
+      method: 'POST',
+    }),
   getSupabaseSchema: () =>
     request<{ sql: string }>('/supabase/schema'),
 };

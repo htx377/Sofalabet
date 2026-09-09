@@ -25,37 +25,23 @@ export const SecretAdminModal: React.FC<SecretAdminModalProps> = ({
   const handleAdminAuth = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
+
+    const userIdent = identifier.trim();
+    const userPass = password.trim();
+
+    if (!userIdent || !userPass) {
+      setError('Por favor preencha o identificador e a palavra-passe.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Allow Master key bypass or requested admin login
-      let userIdent = identifier.trim() || '872344381';
-      let userPass = password.trim() || '12345678j';
-
-      if (identifier.trim().toLowerCase() === 'master' || identifier.trim() === 'sofalabet2026') {
-        userIdent = '872344381';
-        userPass = '12345678j';
-      }
-
       await login({ identifier: userIdent, password: userPass });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Credenciais de Administrador inválidas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickMasterUnlock = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      await login({ identifier: '872344381', password: '12345678j' });
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Falha na autenticação rápida de Super Administrador');
+      setError(err.message || 'Credenciais de Administrador inválidas. Acesso restrito.');
     } finally {
       setLoading(false);
     }
@@ -149,35 +135,15 @@ export const SecretAdminModal: React.FC<SecretAdminModalProps> = ({
             className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Shield className="w-4 h-4" />
-            <span>{loading ? 'A validar autorização...' : 'Desbloquear Painel de Gestão'}</span>
+            <span>{loading ? 'A validar autorização...' : 'Aceder ao Painel Administrativo'}</span>
           </button>
         </form>
 
-        {/* Master 1-Click bypass for system owner */}
-        <div className="mt-5 pt-4 border-t border-slate-800 text-center space-y-2">
-          <p className="text-[11px] text-slate-400">
-            Acesso do Proprietário do Sistema:
+        <div className="mt-5 pt-3 border-t border-slate-800/80 text-center">
+          <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1">
+            <Lock className="w-3 h-3 text-amber-500/70" />
+            <span>Sessão protegida por encriptação. Acessos não autorizados são monitorizados.</span>
           </p>
-          <button
-            type="button"
-            onClick={handleQuickMasterUnlock}
-            disabled={loading}
-            className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-98"
-          >
-            <Lock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Desbloqueio Imediato com Conta Super Admin</span>
-          </button>
-        </div>
-
-        {/* Secret summary hints */}
-        <div className="mt-4 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[10px] text-slate-500 space-y-1">
-          <div className="font-bold text-slate-400 uppercase tracking-wider">
-            Dica dos Truques do Super Administrador:
-          </div>
-          <div>• 5 cliques no Logótipo "S" no cabeçalho</div>
-          <div>• Atalho de teclado: <kbd className="px-1 py-0.2 bg-slate-800 rounded text-amber-400 font-mono">Ctrl+Shift+A</kbd></div>
-          <div>• Digitar no teclado: <span className="text-amber-400 font-mono">a-d-m-i-n</span></div>
-          <div>• Adicionar <span className="text-amber-400 font-mono">#admin</span> ao URL</div>
         </div>
 
       </div>

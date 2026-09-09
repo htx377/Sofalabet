@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
+import { useRealtime } from '../context/RealtimeContext.tsx';
 import {
   Shield,
   Wallet as WalletIcon,
@@ -15,6 +16,7 @@ import {
   History,
   Database,
   Phone,
+  Radio,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { items, setIsOpenMobile } = useBetSlip();
+  const { isLiveConnected } = useRealtime();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const logoClicksRef = React.useRef(0);
   const lastLogoClickTimeRef = React.useRef(0);
@@ -88,6 +91,15 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 uppercase tracking-wider">
                   MZN
                 </span>
+                {isLiveConnected && (
+                  <span
+                    title="Conectado ao Supabase Realtime (Sincronização em direto)"
+                    className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="hidden sm:inline">LIVE</span>
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-slate-400 hidden sm:block truncate">
                 Apostas em Futebol Moçambicano
@@ -123,15 +135,20 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Concealed: Only shows exit button if admin mode is currently active */}
-            {currentView === 'admin' && (
+            {/* Admin navigation button */}
+            {user?.role === 'ADMIN' && (
               <button
-                id="nav-admin-exit-btn"
-                onClick={() => handleNav('sportsbook')}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 flex items-center gap-1.5 transition-all shadow-sm"
+                id="nav-admin-panel-btn"
+                onClick={() => handleNav(currentView === 'admin' ? 'sportsbook' : 'admin')}
+                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition-all shadow-sm ${
+                  currentView === 'admin'
+                    ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+                }`}
+                title="Aceder ao Painel Administrativo"
               >
                 <Shield className="w-3.5 h-3.5 text-amber-400" />
-                <span>Voltar às Apostas</span>
+                <span>{currentView === 'admin' ? 'Voltar às Apostas' : 'Painel Admin'}</span>
               </button>
             )}
           </nav>
@@ -150,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <WalletIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span className="font-black text-xs sm:text-sm text-emerald-400 whitespace-nowrap">
-                      {user.balance.toFixed(2)}
+                      {user.balance.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       <span className="text-[9px] sm:text-[10px] text-slate-400 ml-1 font-normal">MZN</span>
                     </span>
                   </button>
@@ -160,10 +177,10 @@ export const Header: React.FC<HeaderProps> = ({
                       id="header-deposit-btn"
                       onClick={onOpenDeposit}
                       title="Painel de Depósito"
-                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all flex items-center gap-1 shadow-sm shadow-emerald-500/20 active:scale-95"
+                      className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all flex items-center gap-1 shadow-sm shadow-emerald-500/20 active:scale-95"
                     >
                       <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span className="hidden xs:inline sm:inline">Depositar</span>
+                      <span className="hidden sm:inline">Depositar</span>
                     </button>
                   )}
 
@@ -172,10 +189,10 @@ export const Header: React.FC<HeaderProps> = ({
                       id="header-withdraw-btn"
                       onClick={onOpenWithdraw}
                       title="Painel de Levantamento"
-                      className="hidden md:flex px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all items-center gap-1 active:scale-95"
+                      className="hidden sm:flex px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-amber-500/40 text-amber-300 text-xs font-black transition-all items-center gap-1 active:scale-95"
                     >
                       <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Levantar</span>
+                      <span className="hidden sm:inline">Levantar</span>
                     </button>
                   )}
                 </div>
@@ -375,14 +392,18 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
-                {/* Concealed: only show exit if admin is currently active */}
-                {currentView === 'admin' && (
+                {/* Admin Navigation in mobile drawer */}
+                {user?.role === 'ADMIN' && (
                   <button
-                    onClick={() => handleNav('sportsbook')}
-                    className="w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 bg-amber-500/15 text-amber-300 border border-amber-500/25 transition-colors"
+                    onClick={() => handleNav(currentView === 'admin' ? 'sportsbook' : 'admin')}
+                    className={`w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 transition-colors ${
+                      currentView === 'admin'
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    }`}
                   >
-                    <Shield className="w-4 h-4 text-amber-400" />
-                    <span>Voltar às Apostas Desportivas</span>
+                    <Shield className={`w-4 h-4 ${currentView === 'admin' ? 'text-slate-950' : 'text-amber-400'}`} />
+                    <span>{currentView === 'admin' ? 'Voltar às Apostas Desportivas' : 'Painel de Administração'}</span>
                   </button>
                 )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { BetSlipProvider, useBetSlip } from './context/BetSlipContext.tsx';
+import { RealtimeProvider } from './context/RealtimeContext.tsx';
 import { Header } from './components/Header.tsx';
 import { MatchList } from './components/MatchList.tsx';
 import { BetSlip } from './components/BetSlip.tsx';
@@ -22,9 +23,6 @@ function MainLayout() {
   const [secretAdminModalOpen, setSecretAdminModalOpen] = useState(false);
   const [adminToast, setAdminToast] = useState<string | null>(null);
 
-  const footerClicksRef = useRef(0);
-  const lastFooterClickTimeRef = useRef(0);
-
   // If user is not admin, admin view is strictly hidden
   useEffect(() => {
     if (currentView === 'admin' && user?.role !== 'ADMIN') {
@@ -42,54 +40,7 @@ function MainLayout() {
     }
   };
 
-  // Secret Trick 1 & 2: Keyboard shortcuts (Ctrl+Shift+A or typing sequence "admin")
-  useEffect(() => {
-    let keyBuffer = '';
-    let bufferTimer: any = null;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore key events from inputs or textareas
-      const target = e.target as HTMLElement;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-
-      // Shortcut: Ctrl + Shift + A or Cmd + Shift + A
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
-        e.preventDefault();
-        triggerSecretAdmin();
-        return;
-      }
-
-      // Secret sequence typing: "admin"
-      const key = e.key.toLowerCase();
-      if (/^[a-z0-9]$/.test(key)) {
-        keyBuffer += key;
-        clearTimeout(bufferTimer);
-        bufferTimer = setTimeout(() => {
-          keyBuffer = '';
-        }, 2200);
-
-        if (keyBuffer.endsWith('admin')) {
-          keyBuffer = '';
-          triggerSecretAdmin();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      clearTimeout(bufferTimer);
-    };
-  }, [user]);
-
-  // Secret Trick 3: URL Hash or Query (#admin, #superadmin, ?admin=true)
+  // Secret URL Hash trigger (#admin or ?admin=true) known only to the administrator
   useEffect(() => {
     const checkUrlTriggers = () => {
       const hash = window.location.hash.toLowerCase();
@@ -108,22 +59,6 @@ function MainLayout() {
     window.addEventListener('hashchange', checkUrlTriggers);
     return () => window.removeEventListener('hashchange', checkUrlTriggers);
   }, [user]);
-
-  // Secret Trick 4: 5 Clicks on Footer text
-  const handleFooterSecretClick = () => {
-    const now = Date.now();
-    if (now - lastFooterClickTimeRef.current > 2200) {
-      footerClicksRef.current = 1;
-    } else {
-      footerClicksRef.current += 1;
-    }
-    lastFooterClickTimeRef.current = now;
-
-    if (footerClicksRef.current >= 5) {
-      footerClicksRef.current = 0;
-      triggerSecretAdmin();
-    }
-  };
 
   const openAuth = (mode: 'login' | 'register' = 'login') => {
     setAuthModalMode(mode);
@@ -161,71 +96,11 @@ function MainLayout() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4 pb-24 md:pb-8">
         
-        {/* Banner: Hero */}
-        <div className="mb-4 sm:mb-6 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/20 p-3.5 sm:p-5 relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide flex items-center gap-1.5">
-                  <span>🇲🇿</span> FUTEBOL MOÇAMBICANO • SOFALABET
-                </span>
-                <span className="text-[11px] sm:text-xs text-slate-400">• Moçambola, Provinciais & Distritais</span>
-              </div>
-              <h2 className="text-base sm:text-xl font-black text-white tracking-tight">
-                Plataforma Oficial de Apostas Desportivas SofalaBet
-              </h2>
-              <p className="text-[11px] sm:text-xs text-slate-300 max-w-2xl leading-relaxed">
-                Odds 1X2 atualizadas em tempo real, depósitos e levantamentos instantâneos via M-Pesa, e-Mola e mKesh em Meticais (MZN).
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-              {!user ? (
-                <button
-                  id="hero-quick-start-btn"
-                  onClick={() => openAuth('register')}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-md shadow-emerald-500/20 flex items-center gap-1.5"
-                >
-                  <Flame className="w-4 h-4" />
-                  <span>CRIAR CONTA</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    id="hero-quick-deposit-btn"
-                    onClick={() => openWalletAction('deposit')}
-                    className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1 shadow-md shadow-emerald-500/20 active:scale-95"
-                  >
-                    <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Depositar</span>
-                  </button>
-                  <button
-                    id="hero-quick-withdraw-btn"
-                    onClick={() => openWalletAction('withdraw')}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-500/30 font-bold rounded-xl text-xs transition-all flex items-center gap-1 active:scale-95"
-                  >
-                    <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Levantar</span>
-                  </button>
-                  <button
-                    id="hero-account-btn"
-                    onClick={() => setCurrentView('account')}
-                    className="px-3 py-2 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5"
-                  >
-                    <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline">Minha Carteira</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* View Routing */}
         {currentView === 'sportsbook' && (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex flex-col lg:flex-row gap-5 items-start">
             {/* Left/Center Column: Match List */}
             <div className="flex-1 w-full min-w-0">
               <MatchList />
@@ -303,15 +178,17 @@ function MainLayout() {
           <span className="text-[10px] tracking-tight">Conta</span>
         </button>
 
-        {/* Mobile bottom nav: Only shows exit if admin mode is currently active */}
-        {currentView === 'admin' && (
+        {/* Mobile bottom nav: Admin mode button */}
+        {user?.role === 'ADMIN' && (
           <button
             id="mobile-nav-admin"
-            onClick={() => setCurrentView('sportsbook')}
-            className="flex flex-col items-center gap-1 p-1 rounded-xl text-amber-400 font-bold transition-all"
+            onClick={() => setCurrentView(currentView === 'admin' ? 'sportsbook' : 'admin')}
+            className={`flex flex-col items-center gap-1 p-1 rounded-xl transition-all ${
+              currentView === 'admin' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-amber-300'
+            }`}
           >
-            <Shield className="w-5 h-5 text-amber-400" />
-            <span className="text-[10px] tracking-tight font-bold text-amber-300">Sair Admin</span>
+            <Shield className={`w-5 h-5 ${currentView === 'admin' ? 'text-amber-400' : 'text-slate-400'}`} />
+            <span className="text-[10px] tracking-tight font-bold">{currentView === 'admin' ? 'Sair Admin' : 'Admin'}</span>
           </button>
         )}
       </nav>
@@ -322,12 +199,7 @@ function MainLayout() {
           <div className="flex items-center gap-2 text-center md:text-left">
             <span className="font-extrabold text-white">SOFALABET</span>
             <span>•</span>
-            {/* Secret Trick 4: 5 rapid clicks triggers Super Admin */}
-            <span
-              onClick={handleFooterSecretClick}
-              className="cursor-default select-none hover:text-slate-400 transition-colors"
-              title="SofalaBet"
-            >
+            <span className="text-slate-400">
               Moçambique • Operações em Meticais (MZN)
             </span>
           </div>
@@ -376,9 +248,11 @@ function MainLayout() {
 export default function App() {
   return (
     <AuthProvider>
-      <BetSlipProvider>
-        <MainLayout />
-      </BetSlipProvider>
+      <RealtimeProvider>
+        <BetSlipProvider>
+          <MainLayout />
+        </BetSlipProvider>
+      </RealtimeProvider>
     </AuthProvider>
   );
 }

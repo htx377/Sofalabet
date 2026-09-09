@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth.ts';
 import { db } from '../db/store.ts';
 import { WalletService } from '../services/walletService.ts';
 import { config } from '../config/index.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class WalletController {
   static getWallet(req: AuthenticatedRequest, res: Response): void {
@@ -108,6 +109,9 @@ export class WalletController {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+
+      // Real-time synchronization with Supabase
+      supabaseService.syncDepositProofRealtime(depositProof).catch(console.error);
 
       res.status(200).json({
         message: `Depósito de ${amount.toFixed(2)} MZN via ${methodLabel} confirmado com sucesso!`,

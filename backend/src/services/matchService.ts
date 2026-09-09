@@ -1,6 +1,7 @@
 import { db } from '../db/store.ts';
 import { Match, Market, MatchStatus } from '../types/index.ts';
 import { AuditService } from './auditService.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class MatchService {
   static getAllMatches(filter?: { status?: string; competitionId?: string; category?: string }): Match[] {
@@ -65,6 +66,9 @@ export class MatchService {
 
     AuditService.log(adminId, adminEmail, 'CREATE_MATCH', 'Match', matchId, undefined, newMatch, ip);
 
+    // Real-time synchronization with Supabase
+    supabaseService.syncMatchRealtime(newMatch).catch(console.error);
+
     return newMatch;
   }
 
@@ -98,6 +102,9 @@ export class MatchService {
 
     AuditService.log(adminId, adminEmail, 'UPDATE_ODDS', 'Market', market.id, oldOdds, odds, ip);
 
+    // Real-time synchronization with Supabase
+    supabaseService.syncMatchRealtime(match).catch(console.error);
+
     return match;
   }
 
@@ -129,6 +136,9 @@ export class MatchService {
     }
 
     AuditService.log(adminId, adminEmail, 'UPDATE_MATCH_STATUS', 'Match', matchId, { status: oldStatus }, { status, reason }, ip);
+
+    // Real-time synchronization with Supabase
+    supabaseService.syncMatchRealtime(match).catch(console.error);
 
     return match;
   }
