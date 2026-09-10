@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../api.ts';
 import {
   Smartphone,
-  Building2,
   CheckCircle2,
   AlertCircle,
   ArrowDownLeft,
@@ -33,7 +32,7 @@ interface DepositPanelProps {
   isModal?: boolean;
 }
 
-type DepositMethod = 'MPESA' | 'EMOLA' | 'MKESH' | 'BANK';
+type DepositMethod = 'EMOLA';
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000, 2500, 5000];
 
@@ -44,7 +43,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
 }) => {
   const { user, updateBalance, refreshUserData } = useAuth();
 
-  const [method, setMethod] = useState<DepositMethod>('MPESA');
+  const method: DepositMethod = 'EMOLA';
   const [amount, setAmount] = useState<string>('500');
   const [phone, setPhone] = useState<string>(() => {
     if (user?.phone) {
@@ -156,13 +155,11 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
       return;
     }
 
-    if (method !== 'BANK') {
       const cleanPhone = phone.replace(/\D/g, '');
       if (cleanPhone.length < 8) {
-        setError('Por favor, introduza um número de celular válido para debitar os fundos.');
+        setError('Por favor, introduza o seu número de celular Movitel (86/87) para conferência da transferência.');
         return;
       }
-    }
 
     setLoading(true);
 
@@ -170,7 +167,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
       const formattedPhone = phone.startsWith('+258') ? phone : `+258 ${phone.trim()}`;
       const res = await api.deposit({
         amount: numericAmount,
-        method,
+        method: 'EMOLA',
         phoneNumber: formattedPhone,
         receiptImage: receiptPreview || undefined,
         receiptFileName: receiptFile?.name || undefined,
@@ -183,13 +180,10 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
       updateBalance(updatedBalance);
       await refreshUserData();
 
-      let methodLabel = 'M-Pesa (Vodacom)';
-      if (method === 'EMOLA') methodLabel = 'e-Mola (Movitel)';
-      if (method === 'MKESH') methodLabel = 'mKesh (Tmcel)';
-      if (method === 'BANK') methodLabel = 'Transferência Bancária';
+      const methodLabel = 'e-Mola (Movitel)';
 
       setSuccessData({
-        reference: res.transaction?.reference || `DEP-${Date.now().toString().slice(-6)}`,
+        reference: res.transaction?.reference || `DEP-EMOLA-${Date.now().toString().slice(-6)}`,
         amount: numericAmount,
         methodLabel,
         phone: formattedPhone,
@@ -230,12 +224,12 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
           <div>
             <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <span>Painel de Depósito</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
-                Instantâneo
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 uppercase">
+                e-Mola Oficial
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Carregue a sua carteira em Meticais (MZN) através das carteiras móveis ou bancos moçambicanos.
+              Carregue a sua carteira em Meticais (MT) exclusivamente através da conta oficial e-Mola (Movitel).
             </p>
           </div>
         </div>
@@ -244,7 +238,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
           <div className="text-right hidden sm:block">
             <span className="text-[11px] text-slate-400 block">Saldo Atual</span>
             <span className="font-extrabold text-sm text-emerald-400">
-              {user.balance.toFixed(2)} MZN
+              {user.balance.toFixed(2)} MT
             </span>
           </div>
         )}
@@ -262,7 +256,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
               Depósito Confirmado com Sucesso!
             </span>
             <div className="text-3xl font-black text-white mt-1">
-              +{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MZN</span>
+              +{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MT</span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
               Os fundos já foram creditados e estão prontos para apostas desportivas.
@@ -276,17 +270,15 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-sans">Método de Pagamento:</span>
-              <span className="text-emerald-300 font-sans font-bold">{successData.methodLabel}</span>
+              <span className="text-orange-400 font-sans font-bold">{successData.methodLabel}</span>
             </div>
-            {method !== 'BANK' && (
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-sans">Número de Celular:</span>
-                <span className="text-white font-sans">{successData.phone}</span>
-              </div>
-            )}
+            <div className="flex justify-between">
+              <span className="text-slate-400 font-sans">Número Movitel:</span>
+              <span className="text-white font-sans">{successData.phone}</span>
+            </div>
             <div className="flex justify-between pt-1 border-t border-slate-800 font-sans">
               <span className="text-slate-400 font-bold">Novo Saldo Disponível:</span>
-              <span className="text-emerald-400 font-black">{successData.newBalance.toFixed(2)} MZN</span>
+              <span className="text-emerald-400 font-black">{successData.newBalance.toFixed(2)} MT</span>
             </div>
           </div>
 
@@ -352,112 +344,68 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
             </div>
           )}
 
-          {/* 1. Method Selection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2">
-              1. Selecione o Método de Pagamento
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {/* M-Pesa */}
-              <button
-                type="button"
-                id="deposit-method-mpesa"
-                onClick={() => setMethod('MPESA')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'MPESA'
-                    ? 'bg-rose-950/40 border-rose-500 shadow-md shadow-rose-950/50 ring-1 ring-rose-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center font-black text-xs shadow">
-                    M
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
-                    Vodacom
-                  </span>
+          {/* 1. Dedicated Official e-Mola Deposit Channel */}
+          <div className="bg-gradient-to-br from-amber-950/40 via-orange-950/30 to-slate-900 border border-orange-500/40 rounded-2xl p-4 sm:p-5 text-xs space-y-4 shadow-lg shadow-orange-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center text-sm font-black shadow-md shadow-orange-500/30">
+                  e
                 </div>
                 <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">M-Pesa</span>
-                  <span className="text-[10px] text-slate-400 block">84 / 85</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base font-black text-white">e-Mola (Movitel)</span>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                      Método Exclusivo
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-orange-300/90 font-medium block">
+                    Canal oficial e direto para carregamento de saldo SofalaBet
+                  </span>
                 </div>
-              </button>
+              </div>
+            </div>
 
-              {/* e-Mola */}
-              <button
-                type="button"
-                id="deposit-method-emola"
-                onClick={() => setMethod('EMOLA')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'EMOLA'
-                    ? 'bg-amber-950/40 border-orange-500 shadow-md shadow-orange-950/50 ring-1 ring-orange-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center font-black text-xs shadow">
-                    e
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">
-                    Movitel
-                  </span>
-                </div>
+            {/* Official Account details card */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="p-3.5 rounded-xl bg-slate-950/90 border border-orange-500/30 flex items-center justify-between">
                 <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">e-Mola</span>
-                  <span className="text-[10px] text-orange-400 font-bold block">{OFFICIAL_EMOLA_NUMBER}</span>
-                  <span className="text-[9px] text-slate-400 block truncate">{OFFICIAL_EMOLA_NAME}</span>
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Número Oficial e-Mola:</span>
+                  <span className="text-xl font-black text-orange-400 font-mono tracking-wide">{OFFICIAL_EMOLA_NUMBER}</span>
                 </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(OFFICIAL_EMOLA_NUMBER);
+                    setCopiedNumber(true);
+                    setTimeout(() => setCopiedNumber(false), 2000);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 text-xs font-bold border border-orange-500/30 flex items-center gap-1.5 transition-all active:scale-95"
+                  title="Copiar número e-Mola"
+                >
+                  {copiedNumber ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedNumber ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
 
-              {/* mKesh */}
-              <button
-                type="button"
-                id="deposit-method-mkesh"
-                onClick={() => setMethod('MKESH')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'MKESH'
-                    ? 'bg-yellow-950/40 border-yellow-500 shadow-md shadow-yellow-950/50 ring-1 ring-yellow-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-xs shadow">
-                    K
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">
-                    Tmcel
-                  </span>
-                </div>
-                <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">mKesh</span>
-                  <span className="text-[10px] text-slate-400 block">82 / 83</span>
-                </div>
-              </button>
+              <div className="p-3.5 rounded-xl bg-slate-950/90 border border-orange-500/30 flex flex-col justify-center">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nome do Titular:</span>
+                <span className="text-base font-black text-white">{OFFICIAL_EMOLA_NAME}</span>
+              </div>
+            </div>
 
-              {/* Bank Transfer */}
-              <button
-                type="button"
-                id="deposit-method-bank"
-                onClick={() => setMethod('BANK')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'BANK'
-                    ? 'bg-blue-950/40 border-blue-500 shadow-md shadow-blue-950/50 ring-1 ring-blue-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                    Bancos
-                  </span>
-                </div>
-                <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">Ponto24 / NIB</span>
-                  <span className="text-[10px] text-slate-400 block">BIM • BCI • SB</span>
-                </div>
-              </button>
+            {/* Step-by-step instructions */}
+            <div className="bg-slate-950/60 rounded-xl p-3 sm:p-3.5 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-orange-400" />
+                <span>Instruções Rápidas no Telemóvel:</span>
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-slate-300 pl-0.5 leading-relaxed">
+                <li>No seu telemóvel Movitel, marque <strong className="text-orange-400 font-mono">*898#</strong> ou utilize a aplicação e-Mola.</li>
+                <li>Selecione <strong className="text-white">Transferir / Enviar Dinheiro</strong> para o número <strong className="text-orange-400 font-mono">{OFFICIAL_EMOLA_NUMBER}</strong>.</li>
+                <li>Confirme com atenção que o titular apresentado é <strong className="text-white">{OFFICIAL_EMOLA_NAME}</strong>.</li>
+                <li>Insira o valor pretendido {numericAmount > 0 ? <strong className="text-emerald-400 font-mono">({numericAmount.toFixed(2)} MT)</strong> : ''} e confirme com o seu PIN e-Mola.</li>
+                <li>Introduza abaixo o seu número Movitel remetente e anexe o comprovativo da SMS para validação imediata.</li>
+              </ol>
             </div>
           </div>
 
@@ -465,9 +413,9 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-300">
-                2. Montante a Depositar (MZN)
+                2. Montante a Depositar (MT)
               </label>
-              <span className="text-[11px] text-slate-400">Mín: 10 MZN • Máx: 100.000 MZN</span>
+              <span className="text-[11px] text-slate-400">Mín: 10 MT • Máx: 100.000 MT</span>
             </div>
 
             {/* Quick buttons */}
@@ -479,11 +427,11 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                   onClick={() => setAmount(val.toString())}
                   className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-colors border ${
                     numericAmount === val
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-sm'
+                      ? 'bg-orange-500 text-slate-950 border-orange-400 font-black shadow-sm'
                       : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700'
                   }`}
                 >
-                  {val}
+                  {val} MT
                 </button>
               ))}
             </div>
@@ -500,159 +448,61 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Ex: 500"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-black text-emerald-400 placeholder-slate-600 focus:outline-none focus:border-emerald-500 tracking-tight"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-black text-orange-400 placeholder-slate-600 focus:outline-none focus:border-orange-500 tracking-tight"
               />
               <span className="absolute right-4 top-3.5 text-xs font-bold text-slate-400">
-                MZN (Meticais)
+                MT (Meticais)
               </span>
             </div>
           </div>
 
-          {/* 3. Account / Phone Details & Official Instructions */}
-          {method === 'EMOLA' && (
-            <div className="bg-gradient-to-r from-orange-950/40 via-amber-950/30 to-slate-900 border border-orange-500/40 rounded-2xl p-4 text-xs space-y-3.5 shadow-lg shadow-orange-950/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-orange-400 font-bold">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-black shadow">
-                    e
-                  </div>
-                  <div>
-                    <span className="text-sm font-black text-white block">Conta Oficial e-Mola (Movitel)</span>
-                    <span className="text-[10px] text-orange-300 font-medium block">Destinatário oficial para depósito de fundos</span>
-                  </div>
-                </div>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
-                  Activo
-                </span>
-              </div>
-
-              {/* Account details card */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="p-3 rounded-xl bg-slate-950/90 border border-orange-500/30 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Número e-Mola:</span>
-                    <span className="text-lg font-black text-orange-400 font-mono tracking-wide">{OFFICIAL_EMOLA_NUMBER}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(OFFICIAL_EMOLA_NUMBER);
-                      setCopiedNumber(true);
-                      setTimeout(() => setCopiedNumber(false), 2000);
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 text-xs font-bold border border-orange-500/30 flex items-center gap-1.5 transition-all active:scale-95"
-                    title="Copiar número e-Mola"
-                  >
-                    {copiedNumber ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedNumber ? 'Copiado!' : 'Copiar'}</span>
-                  </button>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/90 border border-orange-500/30 flex flex-col justify-center">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nome Registado:</span>
-                  <span className="text-base font-black text-white">{OFFICIAL_EMOLA_NAME}</span>
-                </div>
-              </div>
-
-              {/* Step-by-step instructions */}
-              <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <Smartphone className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Instruções Rápidas no Telemóvel:</span>
-                </div>
-                <ol className="list-decimal list-inside space-y-1 text-slate-300 pl-0.5 leading-relaxed">
-                  <li>No seu telemóvel Movitel, marque <strong className="text-orange-400 font-mono">*898#</strong> ou aceda à App e-Mola.</li>
-                  <li>Escolha <strong className="text-white">Transferir / Enviar Dinheiro</strong> para o número <strong className="text-orange-400 font-mono">{OFFICIAL_EMOLA_NUMBER}</strong>.</li>
-                  <li>Confirme que o nome do titular apresentado é <strong className="text-white">{OFFICIAL_EMOLA_NAME}</strong>.</li>
-                  <li>Introduza o valor {numericAmount > 0 ? <strong className="text-emerald-400 font-mono">({numericAmount.toFixed(2)} MZN)</strong> : ''} e confirme com o seu PIN da e-Mola.</li>
-                  <li>Introduza abaixo o seu número de telemóvel e anexe o comprovativo da SMS recebida para crédito imediato.</li>
-                </ol>
-              </div>
+          {/* 3. User's Movitel Phone Number */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-300">
+                3. O Seu Número de Celular Movitel (com o qual efetuou o envio)
+              </label>
+              <span className="text-[10px] text-orange-400 font-bold">
+                Prefixo 86 ou 87 (e-Mola)
+              </span>
             </div>
-          )}
-
-          {method !== 'BANK' ? (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  {method === 'EMOLA'
-                    ? '3. O Seu Número de Celular Movitel (com o qual efetuou o envio)'
-                    : '3. Número de Celular da Carteira Móvel'}
-                </label>
-                <span className="text-[10px] text-slate-400">
-                  {method === 'MPESA' && 'Prefixo 84 ou 85'}
-                  {method === 'EMOLA' && 'Prefixo 86 ou 87'}
-                  {method === 'MKESH' && 'Prefixo 82 ou 83'}
-                </span>
+            <div className="relative flex items-center">
+              <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 font-bold text-xs pointer-events-none">
+                <span>🇲🇿</span>
+                <span>+258</span>
               </div>
-              <div className="relative flex items-center">
-                <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 font-bold text-xs pointer-events-none">
-                  <span>🇲🇿</span>
-                  <span>+258</span>
-                </div>
-                <input
-                  id="deposit-phone-input"
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={method === 'EMOLA' ? '86 700 0000' : '84 123 4567'}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span>
-                  {method === 'EMOLA'
-                    ? 'Utilizado pela tesouraria para validar o recebimento da transferência na conta de Aninha Basto (867090687).'
-                    : 'Receberá uma solicitação push no seu telemóvel para digitar o seu PIN e validar o depósito.'}
-                </span>
-              </p>
+              <input
+                id="deposit-phone-input"
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="86 700 0000"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+              />
             </div>
-          ) : (
-            <div className="bg-slate-900/90 border border-blue-500/20 rounded-xl p-4 text-xs space-y-2.5">
-              <div className="flex items-center gap-2 text-blue-300 font-bold">
-                <Building2 className="w-4 h-4" />
-                <span>Dados Oficiais para Transferência Bancária / Ponto24:</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300 font-mono text-[11px]">
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <span className="text-slate-400 block font-sans">Banco:</span>
-                  <strong>Millennium BIM</strong>
-                </div>
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <span className="text-slate-400 block font-sans">NIB SofalaBet:</span>
-                  <strong>0001 0000 0123 4567 8901 2</strong>
-                </div>
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <span className="text-slate-400 block font-sans">Banco:</span>
-                  <strong>BCI Moçambique</strong>
-                </div>
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <span className="text-slate-400 block font-sans">NIB SofalaBet:</span>
-                  <strong>0008 0000 0987 6543 2109 8</strong>
-                </div>
-              </div>
-              <p className="text-[10px] text-slate-400 font-sans">
-                Ao clicar em confirmar, o sistema regista a referência para conferência imediata e crédito em conta.
-              </p>
-            </div>
-          )}
+            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+              <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span>
+                Utilizado pela tesouraria para validar o recebimento da transferência na conta oficial de Aninha Basto (867090687).
+              </span>
+            </p>
+          </div>
 
           {/* 4. Proof of Payment Upload for Administration */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Paperclip className="w-3.5 h-3.5 text-emerald-400" />
-                <span>4. Comprovativo para a Administração</span>
+                <Paperclip className="w-3.5 h-3.5 text-orange-400" />
+                <span>4. Comprovativo para a Administração (SMS / Talão e-Mola)</span>
               </label>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                {method === 'BANK' ? 'Recomendado' : 'Opcional / Auditoria'}
+                Recomendado para Validação Rápida
               </span>
             </div>
 
             <p className="text-[11px] text-slate-400">
-              Anexe o talão, captura de ecrã (screenshot) da mensagem SMS da Vodacom/Movitel/Tmcel ou o comprovativo bancário para revisão direta da administração.
+              Anexe a captura de ecrã (screenshot) da mensagem SMS recebida da e-Mola (*898#) ou foto do talão para conferência imediata da tesouraria.
             </p>
 
             {/* Hidden native input */}
@@ -679,15 +529,15 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
                   isDragging
-                    ? 'border-emerald-400 bg-emerald-950/30 scale-[1.01]'
-                    : 'border-slate-700 hover:border-emerald-500/60 bg-slate-950/50 hover:bg-slate-950/80'
+                    ? 'border-orange-400 bg-orange-950/30 scale-[1.01]'
+                    : 'border-slate-700 hover:border-orange-500/60 bg-slate-950/50 hover:bg-slate-950/80'
                 }`}
               >
-                <div className="w-11 h-11 rounded-full bg-slate-850 border border-slate-700 text-emerald-400 mx-auto flex items-center justify-center mb-2 shadow-inner">
+                <div className="w-11 h-11 rounded-full bg-slate-850 border border-slate-700 text-orange-400 mx-auto flex items-center justify-center mb-2 shadow-inner">
                   <Upload className="w-5 h-5" />
                 </div>
                 <div className="text-xs font-bold text-slate-200 mb-1">
-                  Arraste o comprovativo para aqui ou <span className="text-emerald-400 underline underline-offset-2">clique para selecionar</span>
+                  Arraste a SMS / Comprovativo e-Mola para aqui ou <span className="text-orange-400 underline underline-offset-2">clique para selecionar</span>
                 </div>
                 <p className="text-[10px] text-slate-500">
                   Formatos aceites: PNG, JPG, WEBP, PDF (Máx. 10 MB)
@@ -695,7 +545,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
               </div>
             ) : (
               /* Uploaded Receipt Preview Card */
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/40 space-y-3">
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-orange-500/40 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 overflow-hidden">
                     {receiptPreview && receiptFile.type.startsWith('image/') ? (
@@ -714,7 +564,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="w-14 h-14 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center text-rose-400 shrink-0">
+                      <div className="w-14 h-14 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center text-orange-400 shrink-0">
                         <FileText className="w-7 h-7" />
                       </div>
                     )}
@@ -728,7 +578,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                       </span>
                       <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold mt-0.5">
                         <FileCheck className="w-3 h-3" />
-                        <span>Pronto para envio à administração</span>
+                        <span>Comprovativo e-Mola pronto para conferência</span>
                       </div>
                     </div>
                   </div>
@@ -763,15 +613,15 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 mb-1">
-                  ID / Ref da Operadora ou do Talão (Opcional)
+                  ID / Ref da SMS e-Mola (Opcional)
                 </label>
                 <input
                   id="deposit-receipt-ref-input"
                   type="text"
                   value={receiptReference}
                   onChange={(e) => setReceiptReference(e.target.value)}
-                  placeholder="Ex: MP260907.1337.B99"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                  placeholder="Ex: EM260907.1337..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
                 />
               </div>
               <div>
@@ -783,8 +633,8 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ex: Efetuado via agente M-Pesa..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                  placeholder="Ex: Transferência e-Mola enviada do número 86..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
                 />
               </div>
             </div>
@@ -794,15 +644,15 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
             <div className="flex justify-between text-slate-400">
               <span>Montante Solicitado:</span>
-              <span className="font-bold text-white">{numericAmount.toFixed(2)} MZN</span>
+              <span className="font-bold text-white">{numericAmount.toFixed(2)} MT</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Taxa de Processamento (Promo SofalaBet):</span>
-              <span className="font-bold text-emerald-400">0,00 MZN (Grátis)</span>
+              <span>Taxa de Processamento e-Mola:</span>
+              <span className="font-bold text-emerald-400">0,00 MT (Grátis)</span>
             </div>
             <div className="flex justify-between text-sm font-black pt-1.5 border-t border-slate-800">
               <span className="text-white">Total a Creditar:</span>
-              <span className="text-emerald-400">+{numericAmount.toFixed(2)} MZN</span>
+              <span className="text-emerald-400">+{numericAmount.toFixed(2)} MT</span>
             </div>
           </div>
 
@@ -811,25 +661,25 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
             id="deposit-submit-btn"
             type="submit"
             disabled={loading || numericAmount < 10}
-            className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+            className="w-full py-3.5 px-4 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
           >
             {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>A processar com a operadora...</span>
+                <span>A validar com a e-Mola...</span>
               </>
             ) : (
               <>
                 <Zap className="w-4 h-4 fill-slate-950" />
-                <span>Confirmar Depósito de {numericAmount.toFixed(2)} MZN</span>
+                <span>Confirmar Depósito via e-Mola de {numericAmount.toFixed(2)} MT</span>
               </>
             )}
           </button>
 
           {/* Security badge */}
           <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Transação segura e criptografada com liquidação em Meticais</span>
+            <ShieldCheck className="w-4 h-4 text-orange-500" />
+            <span>Depósito seguro via e-Mola Movitel Moçambique</span>
           </div>
         </form>
       )}

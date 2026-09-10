@@ -48,7 +48,7 @@ export const WalletActionModal: React.FC<WalletActionModalProps> = ({
               onClick={() => setActiveTab('withdraw')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                 activeTab === 'withdraw'
-                  ? 'bg-amber-500 text-slate-950 shadow'
+                  ? 'bg-orange-500 text-slate-950 shadow'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >

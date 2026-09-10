@@ -3,15 +3,11 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../api.ts';
 import {
   Smartphone,
-  Building2,
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
   ShieldCheck,
-  Zap,
   RefreshCw,
-  Wallet,
-  Clock,
   ChevronRight,
   Info,
 } from 'lucide-react';
@@ -22,18 +18,9 @@ interface WithdrawalPanelProps {
   isModal?: boolean;
 }
 
-type WithdrawalMethod = 'MPESA' | 'EMOLA' | 'MKESH' | 'BANK';
+type WithdrawalMethod = 'EMOLA';
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000];
-
-const MZ_BANKS = [
-  'Millennium BIM',
-  'BCI (Banco Comercial e de Investimentos)',
-  'Standard Bank Moçambique',
-  'Moza Banco',
-  'Nedbank Moçambique',
-  'FNB Moçambique',
-];
 
 export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
   onSuccess,
@@ -42,7 +29,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
 }) => {
   const { user, updateBalance, refreshUserData } = useAuth();
 
-  const [method, setMethod] = useState<WithdrawalMethod>('MPESA');
+  const method: WithdrawalMethod = 'EMOLA';
   const [amount, setAmount] = useState<string>('250');
   const [phone, setPhone] = useState<string>(() => {
     if (user?.phone) {
@@ -50,11 +37,6 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
     }
     return '';
   });
-
-  // Bank transfer states
-  const [selectedBank, setSelectedBank] = useState<string>(MZ_BANKS[0]);
-  const [nib, setNib] = useState<string>('');
-  const [accountHolder, setAccountHolder] = useState<string>(user?.name || '');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,58 +56,39 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
     setError(null);
 
     if (numericAmount < 20) {
-      setError('O montante mínimo de levantamento é de 20,00 MZN.');
+      setError('O montante mínimo de levantamento é de 20,00 MT.');
       return;
     }
 
     if (numericAmount > availableBalance) {
-      setError(`Saldo insuficiente. O seu saldo disponível é de ${availableBalance.toFixed(2)} MZN.`);
+      setError(`Saldo insuficiente. O seu saldo disponível é de ${availableBalance.toFixed(2)} MT.`);
       return;
     }
 
-    let destinationInfo = '';
-
-    if (method !== 'BANK') {
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone.length < 8) {
-        setError('Por favor, introduza o número de celular de destino válido.');
-        return;
-      }
-      destinationInfo = phone.startsWith('+258') ? phone : `+258 ${phone.trim()}`;
-    } else {
-      const cleanNib = nib.replace(/\s+/g, '');
-      if (cleanNib.length < 10) {
-        setError('Por favor, introduza um NIB ou número de conta bancária válido.');
-        return;
-      }
-      if (!accountHolder.trim()) {
-        setError('Por favor, introduza o nome do titular da conta bancária.');
-        return;
-      }
-      destinationInfo = `${selectedBank} • NIB: ${cleanNib} (${accountHolder.trim()})`;
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 8) {
+      setError('Por favor, introduza um número de celular Movitel (86/87) válido para receber os fundos.');
+      return;
     }
+    const destinationInfo = phone.startsWith('+258') ? phone : `+258 ${phone.trim()}`;
 
     setLoading(true);
 
     try {
       const res = await api.withdraw({
         amount: numericAmount,
-        method,
-        phoneNumber: method !== 'BANK' ? destinationInfo : undefined,
-        bankDetails: method === 'BANK' ? destinationInfo : undefined,
+        method: 'EMOLA',
+        phoneNumber: destinationInfo,
       });
 
       const updatedBalance = res.wallet?.balance ?? (availableBalance - numericAmount);
       updateBalance(updatedBalance);
       await refreshUserData();
 
-      let methodLabel = 'M-Pesa (Vodacom)';
-      if (method === 'EMOLA') methodLabel = 'e-Mola (Movitel)';
-      if (method === 'MKESH') methodLabel = 'mKesh (Tmcel)';
-      if (method === 'BANK') methodLabel = `Transferência Bancária (${selectedBank})`;
+      const methodLabel = 'e-Mola (Movitel)';
 
       setSuccessData({
-        reference: res.transaction?.reference || `LEV-${Date.now().toString().slice(-6)}`,
+        reference: res.transaction?.reference || `LEV-EMOLA-${Date.now().toString().slice(-6)}`,
         amount: numericAmount,
         methodLabel,
         destination: destinationInfo,
@@ -159,18 +122,18 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400">
             <ArrowUpRight className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <span>Painel de Levantamento</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
-                Seguro & Rápido
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 uppercase">
+                e-Mola Oficial
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Levante os seus ganhos diretamente para a sua conta M-Pesa, e-Mola, mKesh ou conta bancária.
+              Levante os seus ganhos instantaneamente para a sua carteira móvel e-Mola (Movitel).
             </p>
           </div>
         </div>
@@ -179,14 +142,14 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
         <div className="text-right">
           <span className="text-[11px] text-slate-400 block">Saldo Disponível</span>
           <span className="font-extrabold text-sm sm:text-base text-emerald-400">
-            {availableBalance.toFixed(2)} MZN
+            {availableBalance.toFixed(2)} MT
           </span>
         </div>
       </div>
 
       {/* Success Receipt State */}
       {successData ? (
-        <div className="bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-5 sm:p-6 text-center space-y-4">
+        <div className="bg-slate-900/90 border border-orange-500/30 rounded-2xl p-5 sm:p-6 text-center space-y-4">
           <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20">
             <CheckCircle2 className="w-8 h-8" />
           </div>
@@ -196,10 +159,10 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
               Levantamento Solicitado com Sucesso!
             </span>
             <div className="text-3xl font-black text-white mt-1">
-              -{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MZN</span>
+              -{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MT</span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              O pagamento foi processado pela tesouraria SofalaBet e transferido para o seu destino.
+              O montante foi debitado e transferido para a sua carteira e-Mola Movitel.
             </p>
           </div>
 
@@ -210,15 +173,15 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-sans">Canal de Pagamento:</span>
-              <span className="text-emerald-300 font-sans font-bold">{successData.methodLabel}</span>
+              <span className="text-orange-400 font-sans font-bold">{successData.methodLabel}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400 font-sans">Destino:</span>
-              <span className="text-white font-sans truncate max-w-[240px]">{successData.destination}</span>
+              <span className="text-slate-400 font-sans">Número de Destino e-Mola:</span>
+              <span className="text-white font-sans">{successData.destination}</span>
             </div>
             <div className="flex justify-between pt-1 border-t border-slate-800 font-sans">
               <span className="text-slate-400 font-bold">Saldo Restante na Conta:</span>
-              <span className="text-emerald-400 font-black">{successData.newBalance.toFixed(2)} MZN</span>
+              <span className="text-emerald-400 font-black">{successData.newBalance.toFixed(2)} MT</span>
             </div>
           </div>
 
@@ -227,7 +190,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
               <button
                 id="withdraw-success-close-btn"
                 onClick={onClose}
-                className="flex-1 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 px-4 bg-orange-500 hover:bg-orange-400 text-slate-950 font-black rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Concluído</span>
                 <ChevronRight className="w-4 h-4" />
@@ -236,7 +199,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <button
               id="withdraw-success-repeat-btn"
               onClick={resetForm}
-              className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs sm:text-sm border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+              className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs sm:text-sm border border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
               <span>Novo Levantamento</span>
@@ -258,116 +221,37 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs flex items-center gap-2">
               <Info className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                O seu saldo atual é de {availableBalance.toFixed(2)} MZN. O montante mínimo exigido para levantamentos é de 20,00 MZN.
+                O seu saldo atual é de {availableBalance.toFixed(2)} MT. O montante mínimo exigido para levantamentos é de 20,00 MT.
               </span>
             </div>
           )}
 
-          {/* 1. Method Selection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2">
-              1. Selecione o Canal de Recebimento
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {/* M-Pesa */}
-              <button
-                type="button"
-                id="withdraw-method-mpesa"
-                onClick={() => setMethod('MPESA')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'MPESA'
-                    ? 'bg-rose-950/40 border-rose-500 shadow-md shadow-rose-950/50 ring-1 ring-rose-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center font-black text-xs shadow">
-                    M
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
-                    Vodacom
-                  </span>
+          {/* 1. Dedicated Official e-Mola Channel */}
+          <div className="bg-gradient-to-br from-amber-950/40 via-orange-950/30 to-slate-900 border border-orange-500/40 rounded-2xl p-4 text-xs space-y-3 shadow-lg shadow-orange-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center text-sm font-black shadow-md shadow-orange-500/30">
+                  e
                 </div>
                 <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">M-Pesa</span>
-                  <span className="text-[10px] text-slate-400 block">Instantâneo</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-white">e-Mola (Movitel)</span>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                      Canal Exclusivo
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-orange-300/90 font-medium block">
+                    Levantamento direto e instantâneo para a sua carteira e-Mola (*898#)
+                  </span>
                 </div>
-              </button>
+              </div>
+            </div>
 
-              {/* e-Mola */}
-              <button
-                type="button"
-                id="withdraw-method-emola"
-                onClick={() => setMethod('EMOLA')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'EMOLA'
-                    ? 'bg-amber-950/40 border-orange-500 shadow-md shadow-orange-950/50 ring-1 ring-orange-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center font-black text-xs shadow">
-                    e
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">
-                    Movitel
-                  </span>
-                </div>
-                <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">e-Mola</span>
-                  <span className="text-[10px] text-slate-400 block">Instantâneo</span>
-                </div>
-              </button>
-
-              {/* mKesh */}
-              <button
-                type="button"
-                id="withdraw-method-mkesh"
-                onClick={() => setMethod('MKESH')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'MKESH'
-                    ? 'bg-yellow-950/40 border-yellow-500 shadow-md shadow-yellow-950/50 ring-1 ring-yellow-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-xs shadow">
-                    K
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">
-                    Tmcel
-                  </span>
-                </div>
-                <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">mKesh</span>
-                  <span className="text-[10px] text-slate-400 block">Instantâneo</span>
-                </div>
-              </button>
-
-              {/* Bank Transfer */}
-              <button
-                type="button"
-                id="withdraw-method-bank"
-                onClick={() => setMethod('BANK')}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
-                  method === 'BANK'
-                    ? 'bg-blue-950/40 border-blue-500 shadow-md shadow-blue-950/50 ring-1 ring-blue-500'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                    Bancos
-                  </span>
-                </div>
-                <div>
-                  <span className="font-black text-xs sm:text-sm text-white block">Conta / NIB</span>
-                  <span className="text-[10px] text-slate-400 block">Transferência</span>
-                </div>
-              </button>
+            <div className="bg-slate-950/70 border border-orange-500/20 rounded-xl p-3 text-[11px] text-slate-300 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-orange-400 shrink-0" />
+              <span>
+                Transferências automáticas e seguras sem taxas de intermediários. Os fundos chegam em poucos segundos à sua conta Movitel.
+              </span>
             </div>
           </div>
 
@@ -375,14 +259,14 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-300">
-                2. Montante a Levantar (MZN)
+                2. Montante a Levantar (MT)
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-400">Mín: 20 MZN</span>
+                <span className="text-[11px] text-slate-400">Mín: 20 MT</span>
                 <button
                   type="button"
                   onClick={handleMaxBalance}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30"
+                  className="text-[10px] font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/30 cursor-pointer"
                 >
                   Levantar Tudo
                 </button>
@@ -397,13 +281,13 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
                   type="button"
                   disabled={val > availableBalance}
                   onClick={() => setAmount(val.toString())}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-colors border ${
+                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-colors border cursor-pointer ${
                     numericAmount === val
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-sm'
-                      : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 disabled:opacity-30'
+                      ? 'bg-orange-500 text-slate-950 border-orange-400 font-black shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed'
                   }`}
                 >
-                  {val}
+                  {val} MT
                 </button>
               ))}
             </div>
@@ -420,117 +304,66 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Ex: 250"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-black text-amber-400 placeholder-slate-600 focus:outline-none focus:border-amber-500 tracking-tight"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-black text-orange-400 placeholder-slate-600 focus:outline-none focus:border-orange-500 tracking-tight"
               />
               <span className="absolute right-4 top-3.5 text-xs font-bold text-slate-400">
-                MZN (Meticais)
+                MT (Meticais)
               </span>
             </div>
           </div>
 
-          {/* 3. Destination Details */}
-          {method !== 'BANK' ? (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  3. Número de Celular para Receber os Fundos
-                </label>
-                <span className="text-[10px] text-slate-400">
-                  {method === 'MPESA' && 'Carteira M-Pesa (84/85)'}
-                  {method === 'EMOLA' && 'Carteira e-Mola (86/87)'}
-                  {method === 'MKESH' && 'Carteira mKesh (82/83)'}
-                </span>
-              </div>
-              <div className="relative flex items-center">
-                <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 font-bold text-xs pointer-events-none">
-                  <span>🇲🇿</span>
-                  <span>+258</span>
-                </div>
-                <input
-                  id="withdraw-phone-input"
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="84 123 4567"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span>
-                  O valor será creditado diretamente no saldo da carteira do telemóvel indicado.
-                </span>
-              </p>
+          {/* 3. Destination Details (e-Mola Phone) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-300">
+                3. Número de Celular Movitel para Receber os Fundos
+              </label>
+              <span className="text-[10px] text-orange-400 font-bold">
+                Prefixo 86 ou 87 (e-Mola)
+              </span>
             </div>
-          ) : (
-            <div className="space-y-3 bg-slate-900/90 border border-blue-500/20 rounded-xl p-4 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Selecione o seu Banco Moçambicano
-                </label>
-                <select
-                  value={selectedBank}
-                  onChange={(e) => setSelectedBank(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none focus:border-blue-500"
-                >
-                  {MZ_BANKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
+            <div className="relative flex items-center">
+              <div className="absolute left-3 flex items-center gap-1.5 text-slate-400 font-bold text-xs pointer-events-none">
+                <span>🇲🇿</span>
+                <span>+258</span>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  NIB / Número de Conta Bancária
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={nib}
-                  onChange={(e) => setNib(e.target.value)}
-                  placeholder="Ex: 0001 0000 1234 5678 9012 3"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Nome Completo do Titular da Conta
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value)}
-                  placeholder="Nome idêntico ao registado no banco"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
+              <input
+                id="withdraw-phone-input"
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="86 700 0000"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+              />
             </div>
-          )}
+            <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+              <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span>
+                O valor será creditado diretamente no saldo da carteira e-Mola associada ao número indicado.
+              </span>
+            </p>
+          </div>
 
           {/* Fee & Calculation Summary */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
             <div className="flex justify-between text-slate-400">
               <span>Montante a Levantar:</span>
-              <span className="font-bold text-white">{numericAmount.toFixed(2)} MZN</span>
+              <span className="font-bold text-white">{numericAmount.toFixed(2)} MT</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Comissão de Levantamento:</span>
-              <span className="font-bold text-emerald-400">0,00 MZN (Sem Taxas)</span>
+              <span>Taxa de Levantamento e-Mola:</span>
+              <span className="font-bold text-emerald-400">0,00 MT (Grátis)</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Saldo Após Operação:</span>
+              <span>Saldo Restante:</span>
               <span className="font-bold text-slate-300">
-                {Math.max(0, availableBalance - numericAmount).toFixed(2)} MZN
+                {Math.max(0, availableBalance - numericAmount).toFixed(2)} MT
               </span>
             </div>
             <div className="flex justify-between text-sm font-black pt-1.5 border-t border-slate-800">
-              <span className="text-white">Total a Receber:</span>
-              <span className="text-amber-400">{numericAmount.toFixed(2)} MZN</span>
+              <span className="text-white">Total a Receber no e-Mola:</span>
+              <span className="text-orange-400 font-mono">+{numericAmount.toFixed(2)} MT</span>
             </div>
           </div>
 
@@ -539,25 +372,25 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             id="withdraw-submit-btn"
             type="submit"
             disabled={loading || numericAmount < 20 || numericAmount > availableBalance}
-            className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+            className="w-full py-3.5 px-4 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
           >
             {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>A comunicar com a tesouraria...</span>
+                <span>A processar transferência com a e-Mola...</span>
               </>
             ) : (
               <>
                 <ArrowUpRight className="w-4 h-4" />
-                <span>Solicitar Levantamento de {numericAmount.toFixed(2)} MZN</span>
+                <span>Confirmar Levantamento via e-Mola de {numericAmount.toFixed(2)} MT</span>
               </>
             )}
           </button>
 
           {/* Security badge */}
           <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-amber-500" />
-            <span>Processamento verificado pelo sistema de liquidação e tesouraria SofalaBet</span>
+            <ShieldCheck className="w-4 h-4 text-orange-500" />
+            <span>Processamento verificado pelo sistema de tesouraria SofalaBet e rede Movitel</span>
           </div>
         </form>
       )}

@@ -273,12 +273,12 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
           onClick={() => setActiveTab('deposit')}
           className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
             activeTab === 'deposit'
-              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              ? 'border-orange-500 text-orange-400 bg-orange-500/5'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
-          <span>Painel de Depósito</span>
+          <ArrowDownLeft className="w-4 h-4 text-orange-400" />
+          <span>Depósito e-Mola</span>
         </button>
 
         <button
@@ -286,12 +286,12 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
           onClick={() => setActiveTab('withdraw')}
           className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
             activeTab === 'withdraw'
-              ? 'border-amber-500 text-amber-400 bg-amber-500/5'
+              ? 'border-orange-500 text-orange-400 bg-orange-500/5'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ArrowUpRight className="w-4 h-4 text-amber-400" />
-          <span>Painel de Levantamento</span>
+          <ArrowUpRight className="w-4 h-4 text-orange-400" />
+          <span>Levantamento e-Mola</span>
         </button>
 
         <button
