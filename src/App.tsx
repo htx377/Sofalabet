@@ -10,18 +10,68 @@ import { UserAccountModal } from './components/UserAccountModal.tsx';
 import { WalletActionModal } from './components/WalletActionModal.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
 import { SecretAdminModal } from './components/SecretAdminModal.tsx';
-import { Shield, Flame, Wallet as WalletIcon, Trophy, Ticket, User as UserIcon, ArrowDownLeft, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Shield, Flame, Wallet as WalletIcon, Trophy, Ticket, User as UserIcon, ArrowDownLeft, ArrowUpRight, CheckCircle2, History, AlertCircle, Bell } from 'lucide-react';
+import { subscribeToSettlement } from './utils/settlementEvents.ts';
+import { api } from './api.ts';
 
 function MainLayout() {
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
   const { items, setIsOpenMobile } = useBetSlip();
   const [currentView, setCurrentView] = useState<'sportsbook' | 'account' | 'admin'>('sportsbook');
+  const [accountTab, setAccountTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions'>('bets');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletModalTab, setWalletModalTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [secretAdminModalOpen, setSecretAdminModalOpen] = useState(false);
   const [adminToast, setAdminToast] = useState<string | null>(null);
+  const [settlementToast, setSettlementToast] = useState<{
+    title: string;
+    message: string;
+    type: 'win' | 'settled';
+  } | null>(null);
+
+  // Escuta liquidações de partidas feitas pelo administrador para atualizar todos os usuários apostadores
+  useEffect(() => {
+    const unsubscribe = subscribeToSettlement(async (payload) => {
+      console.log('[App] Notificação de liquidação recebida pelo utilizador:', payload);
+      if (user) {
+        // Atualiza saldo e carteira imediatamente
+        await refreshUserData();
+
+        // Verifica se o usuário tem apostas nesta partida
+        try {
+          const userBetsRes = await api.getUserBets();
+          const affectedBets = userBetsRes.bets.filter((b) =>
+            b.items.some((item) => item.matchId === payload.matchId)
+          );
+
+          if (affectedBets.length > 0) {
+            const wonBets = affectedBets.filter((b) => b.status === 'WON');
+            if (wonBets.length > 0) {
+              const totalWon = wonBets.reduce((sum, b) => sum + b.potentialReturn, 0);
+              setSettlementToast({
+                title: '🎉 Parabéns! Bilhete Premiado!',
+                message: `Resultado: ${payload.homeScore} - ${payload.awayScore}. Ganhou ${totalWon.toFixed(2)} MT! Saldo creditado.`,
+                type: 'win',
+              });
+            } else {
+              setSettlementToast({
+                title: 'Resultado Publicado pelo Admin',
+                message: `Resultado: ${payload.homeScore} - ${payload.awayScore}. O seu bilhete de apostas foi processado.`,
+                type: 'settled',
+              });
+            }
+            setTimeout(() => setSettlementToast(null), 8000);
+          }
+        } catch (e) {
+          console.error('Erro ao verificar apostas do utilizador pós liquidação', e);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, refreshUserData]);
 
   // If user is not admin, admin view is strictly hidden
   useEffect(() => {
@@ -74,6 +124,15 @@ function MainLayout() {
     setWalletModalOpen(true);
   };
 
+  const openUserBets = () => {
+    if (!user) {
+      openAuth('login');
+      return;
+    }
+    setAccountTab('bets');
+    setCurrentView('account');
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950">
       
@@ -85,6 +144,51 @@ function MainLayout() {
         </div>
       )}
 
+      {/* Global Settlement Toast when Admin enters match result */}
+      {settlementToast && (
+        <div
+          onClick={() => {
+            setSettlementToast(null);
+            openUserBets();
+          }}
+          className={`fixed top-20 right-4 left-4 sm:left-auto sm:max-w-md z-50 p-4 rounded-2xl shadow-2xl cursor-pointer transition-all border animate-in slide-in-from-top-3 ${
+            settlementToast.type === 'win'
+              ? 'bg-emerald-950/95 border-emerald-400 text-white shadow-emerald-500/30 ring-1 ring-emerald-400/50'
+              : 'bg-slate-900/95 border-cyan-500/50 text-white shadow-cyan-500/20'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {settlementToast.type === 'win' ? (
+              <div className="p-2 rounded-xl bg-emerald-500 text-slate-950 font-bold">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            ) : (
+              <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400">
+                <Bell className="w-5 h-5" />
+              </div>
+            )}
+            <div className="flex-1">
+              <h4 className="text-sm font-black flex items-center gap-1.5">
+                <span>{settlementToast.title}</span>
+              </h4>
+              <p className="text-xs text-slate-300 mt-1">{settlementToast.message}</p>
+              <span className="text-[11px] text-emerald-400 font-bold underline mt-1 block">
+                Clique para ver o seu histórico de apostas →
+              </span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSettlementToast(null);
+              }}
+              className="text-slate-400 hover:text-white text-xs p-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <Header
         currentView={currentView}
@@ -92,6 +196,7 @@ function MainLayout() {
         openAuthModal={openAuth}
         onOpenDeposit={() => openWalletAction('deposit')}
         onOpenWithdraw={() => openWalletAction('withdraw')}
+        onOpenBets={openUserBets}
         onTriggerSecretAdmin={triggerSecretAdmin}
       />
 
@@ -107,12 +212,18 @@ function MainLayout() {
             </div>
 
             {/* Right Column: Bet Slip (Desktop & Mobile) */}
-            <BetSlip onOpenAuth={() => openAuth('login')} />
+            <BetSlip
+              onOpenAuth={() => openAuth('login')}
+              onViewHistory={openUserBets}
+            />
           </div>
         )}
 
         {currentView === 'account' && (
-          <UserAccountModal onNavigateToAdmin={() => setCurrentView('admin')} />
+          <UserAccountModal
+            initialTab={accountTab}
+            onNavigateToAdmin={() => setCurrentView('admin')}
+          />
         )}
 
         {currentView === 'admin' && user?.role === 'ADMIN' && (
@@ -132,6 +243,19 @@ function MainLayout() {
         >
           <Trophy className="w-5 h-5" />
           <span className="text-[10px] tracking-tight">Jogos</span>
+        </button>
+
+        <button
+          id="mobile-nav-my-bets"
+          onClick={openUserBets}
+          className={`flex flex-col items-center gap-1 p-1 rounded-xl transition-all ${
+            currentView === 'account' && accountTab === 'bets'
+              ? 'text-emerald-400 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <History className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">Apostas</span>
         </button>
 
         <button
@@ -165,17 +289,18 @@ function MainLayout() {
           id="mobile-nav-account"
           onClick={() => {
             if (user) {
+              setAccountTab('wallet');
               setCurrentView('account');
             } else {
               openAuth('login');
             }
           }}
           className={`flex flex-col items-center gap-1 p-1 rounded-xl transition-all ${
-            currentView === 'account' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            currentView === 'account' && accountTab === 'wallet' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <UserIcon className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight">Conta</span>
+          <span className="text-[10px] tracking-tight">Carteira</span>
         </button>
 
         {/* Mobile bottom nav: Admin mode button */}
@@ -200,7 +325,7 @@ function MainLayout() {
             <span className="font-extrabold text-white">SOFALABET</span>
             <span>•</span>
             <span className="text-slate-400">
-              Moçambique • Operações em Meticais (MZN)
+              Moçambique • Operações em Meticais (MZN / MT)
             </span>
           </div>
 
@@ -211,6 +336,8 @@ function MainLayout() {
             </span>
             <span>•</span>
             <span>Apenas Futebol Oficial</span>
+            <span>•</span>
+            <span>Aposta Mínima 20 MT</span>
             <span>•</span>
             <span>Jogo Responsável (+18)</span>
           </div>

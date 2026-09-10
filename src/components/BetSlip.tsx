@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
-import { Ticket, Trash2, X, AlertCircle, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Ticket, Trash2, X, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, Lock } from 'lucide-react';
+import { parseMatchKickoff } from '../utils/matchUtils.ts';
 
 interface BetSlipProps {
   onOpenAuth: () => void;
+  onViewHistory?: () => void;
 }
 
-export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
+export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth, onViewHistory }) => {
   const { user } = useAuth();
   const {
     items,
@@ -25,10 +27,38 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
 
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
+  const isItemLocked = (kickoffStr?: string) => {
+    if (!kickoffStr) return false;
+    const parts = kickoffStr.trim().split(' ');
+    const datePart = parts[0] || 'Hoje';
+    const timePart = parts[1] || parts[0];
+    const kickoffDate = parseMatchKickoff(datePart, timePart);
+    return kickoffDate ? kickoffDate.getTime() <= Date.now() : false;
+  };
+
+  const hasLockedItems = items.some((i) => isItemLocked(i.kickoff));
+  const isStakeBelowMin = stake < 20;
+
   const handleConfirmBet = async () => {
     setFeedback(null);
     if (!user) {
       onOpenAuth();
+      return;
+    }
+
+    if (hasLockedItems) {
+      setFeedback({
+        success: false,
+        message: 'Existem partidas que já iniciaram no seu boletim. Remova-as para continuar.',
+      });
+      return;
+    }
+
+    if (isStakeBelowMin) {
+      setFeedback({
+        success: false,
+        message: 'A aposta mínima permitida é de 20 MT.',
+      });
       return;
     }
 
@@ -91,32 +121,60 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
             </div>
           ) : (
             <div className="mt-3 space-y-2.5 max-h-72 overflow-y-auto pr-1">
-              {items.map((item) => (
-                <div
-                  key={item.selectionId}
-                  className="relative p-3 rounded-xl bg-slate-800/90 border border-slate-700/80 group"
-                >
-                  <button
-                    onClick={() => removeSelection(item.selectionId)}
-                    className="absolute top-2 right-2 p-1 text-slate-400 hover:text-rose-400 rounded-md transition-colors"
+              {items.map((item) => {
+                const locked = isItemLocked(item.kickoff);
+                return (
+                  <div
+                    key={item.selectionId}
+                    className={`relative p-3 rounded-xl border transition-all ${
+                      locked
+                        ? 'bg-rose-950/40 border-rose-500/60 shadow-inner'
+                        : 'bg-slate-800/90 border-slate-700/80 group'
+                    }`}
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                    <button
+                      onClick={() => removeSelection(item.selectionId)}
+                      className="absolute top-2 right-2 p-1 text-slate-400 hover:text-rose-400 rounded-md transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
 
-                  <p className="text-[10px] font-semibold text-emerald-400">{item.competitionName}</p>
-                  <p className="text-xs font-bold text-white mt-0.5 pr-5 line-clamp-1">{item.matchTitle}</p>
-
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
-                        {item.outcome}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-200">{item.selectionLabel}</span>
+                      <p className="text-[10px] font-semibold text-emerald-400">{item.competitionName}</p>
+                      {item.kickoff && (
+                        <span className="text-[9px] text-slate-400 font-mono">• {item.kickoff}</span>
+                      )}
                     </div>
-                    <span className="text-sm font-black text-emerald-400">{item.odds.toFixed(2)}</span>
+                    <p className="text-xs font-bold text-white mt-0.5 pr-5 line-clamp-1">{item.matchTitle}</p>
+
+                    {locked && (
+                      <div className="mt-1.5 py-1 px-2 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold flex items-center justify-between border border-rose-500/30">
+                        <span className="flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-rose-400 flex-shrink-0" />
+                          Partida já iniciou • Bloqueado
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeSelection(item.selectionId)}
+                          className="text-[9px] underline hover:text-white"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                          {item.outcome}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-200">{item.selectionLabel}</span>
+                      </div>
+                      <span className="text-sm font-black text-emerald-400">{item.odds.toFixed(2)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -132,10 +190,10 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
               {/* Stake Input */}
               <div>
                 <div className="flex items-center justify-between mb-1 text-xs">
-                  <label htmlFor="stake-input" className="font-semibold text-slate-300">Montante da Aposta (MZN):</label>
+                  <label htmlFor="stake-input" className="font-semibold text-slate-300">Montante da Aposta (MT):</label>
                   {user && (
                     <span className="text-slate-400 text-[11px]">
-                      Disp: <strong className="text-emerald-400">{user.balance.toFixed(2)} MZN</strong>
+                      Disp: <strong className="text-emerald-400">{user.balance.toFixed(2)} MT</strong>
                     </span>
                   )}
                 </div>
@@ -143,20 +201,27 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
                   <input
                     id="stake-input"
                     type="number"
-                    min="10"
+                    min="20"
                     max="50000"
                     step="10"
                     value={stake || ''}
                     onChange={(e) => setStake(Number(e.target.value))}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
-                    placeholder="100"
+                    placeholder="20"
                   />
-                  <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">MZN</span>
+                  <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">MT</span>
+                </div>
+
+                <div className="flex items-center justify-between mt-1 text-[11px]">
+                  <span className="text-amber-400 font-bold">Aposta mínima: 20 MT</span>
+                  {stake < 20 && (
+                    <span className="text-rose-400 font-bold">Mínimo obrigatório: 20 MT</span>
+                  )}
                 </div>
 
                 {/* Quick Chips */}
                 <div className="grid grid-cols-4 gap-1.5 mt-2">
-                  {[50, 100, 250, 500].map((amt) => (
+                  {[20, 50, 100, 500].map((amt) => (
                     <button
                       key={amt}
                       type="button"
@@ -178,7 +243,7 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
                 <div>
                   <span className="text-[11px] text-slate-400 block font-medium">Possível Retorno</span>
                   <span className="text-base font-black text-emerald-400 tracking-tight">
-                    {potentialReturn.toFixed(2)} MZN
+                    {potentialReturn.toFixed(2)} MT
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500 text-right">
@@ -189,14 +254,24 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
               {/* Feedback messages */}
               {feedback && (
                 <div
-                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  className={`p-3 rounded-xl text-xs font-semibold space-y-1.5 ${
                     feedback.success
-                      ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
-                      : 'bg-rose-500/10 border border-rose-500/20 text-rose-300'
+                      ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'
+                      : 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
                   }`}
                 >
-                  {feedback.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
-                  <span>{feedback.message}</span>
+                  <div className="flex items-center gap-2">
+                    {feedback.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" /> : <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />}
+                    <span>{feedback.message}</span>
+                  </div>
+                  {feedback.success && onViewHistory && (
+                    <button
+                      onClick={onViewHistory}
+                      className="w-full mt-1 py-1.5 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-bold transition-all text-center border border-emerald-500/30 block"
+                    >
+                      Aceder ao Histórico de Apostas →
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -204,14 +279,18 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
               <button
                 id="confirm-bet-desktop-btn"
                 onClick={handleConfirmBet}
-                disabled={isSubmitting || items.length === 0}
-                className="w-full py-3.5 px-4 rounded-xl font-black text-sm bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+                disabled={isSubmitting || items.length === 0 || hasLockedItems || isStakeBelowMin}
+                className="w-full py-3.5 px-4 rounded-xl font-black text-sm bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting
                   ? 'A verificar saldo e odds...'
-                  : user
-                  ? `CONFIRMAR APOSTA (${stake} MZN)`
-                  : 'INICIAR SESSÃO PARA APOSTAR'}
+                  : !user
+                  ? 'INICIAR SESSÃO PARA APOSTAR'
+                  : hasLockedItems
+                  ? 'REMOVA OS JOGOS JÁ INICIADOS'
+                  : isStakeBelowMin
+                  ? 'APOSTA MÍNIMA DE 20 MT'
+                  : `CONFIRMAR APOSTA (${stake} MT)`}
               </button>
             </div>
           )}
@@ -299,27 +378,56 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
                     <p className="text-xs text-slate-500">Clica nas odds de qualquer jogo para adicionar seleções.</p>
                   </div>
                 ) : (
-                  items.map((item) => (
-                    <div
-                      key={item.selectionId}
-                      className="relative p-3 rounded-xl bg-slate-800 border border-slate-700"
-                    >
-                      <button
-                        onClick={() => removeSelection(item.selectionId)}
-                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-rose-400"
+                  items.map((item) => {
+                    const locked = isItemLocked(item.kickoff);
+                    return (
+                      <div
+                        key={item.selectionId}
+                        className={`relative p-3 rounded-xl border transition-all ${
+                          locked
+                            ? 'bg-rose-950/40 border-rose-500/60'
+                            : 'bg-slate-800 border-slate-700'
+                        }`}
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <p className="text-[10px] text-emerald-400 font-semibold">{item.competitionName}</p>
-                      <p className="text-xs font-bold text-white pr-6">{item.matchTitle}</p>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
-                        <span className="text-xs font-bold text-slate-300">
-                          {item.outcome}: {item.selectionLabel}
-                        </span>
-                        <span className="text-sm font-black text-emerald-400">{item.odds.toFixed(2)}</span>
+                        <button
+                          onClick={() => removeSelection(item.selectionId)}
+                          className="absolute top-2 right-2 p-1 text-slate-400 hover:text-rose-400"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[10px] text-emerald-400 font-semibold">{item.competitionName}</p>
+                          {item.kickoff && (
+                            <span className="text-[9px] text-slate-400 font-mono">• {item.kickoff}</span>
+                          )}
+                        </div>
+                        <p className="text-xs font-bold text-white pr-6">{item.matchTitle}</p>
+
+                        {locked && (
+                          <div className="mt-1.5 py-1 px-2 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold flex items-center justify-between border border-rose-500/30">
+                            <span className="flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-rose-400 flex-shrink-0" />
+                              Partida já iniciou • Bloqueado
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeSelection(item.selectionId)}
+                              className="text-[9px] underline hover:text-white"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
+                          <span className="text-xs font-bold text-slate-300">
+                            {item.outcome}: {item.selectionLabel}
+                          </span>
+                          <span className="text-sm font-black text-emerald-400">{item.odds.toFixed(2)}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -334,27 +442,34 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label htmlFor="stake-input-mobile" className="block text-xs font-semibold text-slate-300">
-                        Valor Apostado (MZN)
+                        Valor Apostado (MT)
                       </label>
                       {user && (
                         <span className="text-[11px] text-slate-400">
-                          Disponível: <strong className="text-emerald-400">{user.balance.toFixed(2)} MZN</strong>
+                          Disponível: <strong className="text-emerald-400">{user.balance.toFixed(2)} MT</strong>
                         </span>
                       )}
                     </div>
                     <input
                       id="stake-input-mobile"
                       type="number"
-                      min="10"
+                      min="20"
                       value={stake || ''}
                       onChange={(e) => setStake(Number(e.target.value))}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
+                      placeholder="20"
                     />
+                    <div className="flex items-center justify-between mt-1 text-[11px]">
+                      <span className="text-amber-400 font-bold">Mínimo: 20 MT</span>
+                      {stake < 20 && (
+                        <span className="text-rose-400 font-bold">Mínimo de 20 MT obrigatório</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quick stake chips for mobile */}
                   <div className="flex items-center gap-1.5">
-                    {[50, 100, 250, 500].map((amount) => (
+                    {[20, 50, 100, 500].map((amount) => (
                       <button
                         key={amount}
                         type="button"
@@ -372,27 +487,48 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth }) => {
 
                   <div className="p-2.5 rounded-xl bg-slate-950 flex items-center justify-between text-xs">
                     <span className="text-slate-400">Possível Retorno:</span>
-                    <span className="font-black text-emerald-400 text-sm">{potentialReturn.toFixed(2)} MZN</span>
+                    <span className="font-black text-emerald-400 text-sm">{potentialReturn.toFixed(2)} MT</span>
                   </div>
 
                   {feedback && (
                     <div
-                      className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-                        feedback.success ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'
+                      className={`p-2.5 rounded-xl text-xs font-semibold space-y-1.5 ${
+                        feedback.success ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/10 text-rose-300 border border-rose-500/25'
                       }`}
                     >
-                      {feedback.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
-                      <span>{feedback.message}</span>
+                      <div className="flex items-center gap-2">
+                        {feedback.success ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" /> : <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />}
+                        <span>{feedback.message}</span>
+                      </div>
+                      {feedback.success && onViewHistory && (
+                        <button
+                          onClick={() => {
+                            setIsOpenMobile(false);
+                            onViewHistory();
+                          }}
+                          className="w-full mt-1 py-1.5 px-2 rounded-lg bg-emerald-500/20 text-emerald-300 text-[11px] font-bold text-center border border-emerald-500/30 block"
+                        >
+                          Ver no Meu Histórico de Apostas →
+                        </button>
+                      )}
                     </div>
                   )}
 
                   <button
                     id="confirm-bet-mobile-btn"
                     onClick={handleConfirmBet}
-                    disabled={isSubmitting}
-                    className="w-full py-3 px-4 rounded-xl font-black text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]"
+                    disabled={isSubmitting || hasLockedItems || isStakeBelowMin}
+                    className="w-full py-3 px-4 rounded-xl font-black text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? 'A processar...' : user ? `CONFIRMAR APOSTA (${stake} MZN)` : 'ENTRAR PARA APOSTAR'}
+                    {isSubmitting
+                      ? 'A processar...'
+                      : !user
+                      ? 'ENTRAR PARA APOSTAR'
+                      : hasLockedItems
+                      ? 'REMOVA JOGOS JÁ INICIADOS'
+                      : isStakeBelowMin
+                      ? 'APOSTA MÍNIMA DE 20 MT'
+                      : `CONFIRMAR APOSTA (${stake} MT)`}
                   </button>
                 </div>
               )}

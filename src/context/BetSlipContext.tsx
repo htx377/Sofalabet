@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode } from 'react';
 import { BetSlipItem } from '../types.ts';
 import { api } from '../api.ts';
 import { useAuth } from './AuthContext.tsx';
+import { parseMatchKickoff } from '../utils/matchUtils.ts';
 
 interface BetSlipContextType {
   items: BetSlipItem[];
@@ -24,7 +25,7 @@ const BetSlipContext = createContext<BetSlipContextType | undefined>(undefined);
 export function BetSlipProvider({ children }: { children: ReactNode }) {
   const { user, refreshUserData } = useAuth();
   const [items, setItems] = useState<BetSlipItem[]>([]);
-  const [stake, setStakeState] = useState<number>(50);
+  const [stake, setStakeState] = useState<number>(20); // Aposta mínima inicial de 20 MT
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isOpenMobile, setIsOpenMobile] = useState<boolean>(false);
 
@@ -80,11 +81,28 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     if (items.length === 0) {
       return { success: false, message: 'O boletim de apostas está vazio.' };
     }
-    if (stake < 10) {
-      return { success: false, message: 'A aposta mínima permitida é de 10 MZN.' };
+    // Validação de aposta mínima de 20 MT
+    if (stake < 20) {
+      return { success: false, message: 'A aposta mínima permitida é de 20 MT (20 MZN).' };
     }
     if (stake > user.balance) {
       return { success: false, message: `Saldo insuficiente (${user.balance.toFixed(2)} MZN). Por favor recarregue a carteira.` };
+    }
+
+    // Validação preventiva de kickoff: Bloquear caso o jogo já tenha iniciado
+    for (const item of items) {
+      if (item.kickoff) {
+        const parts = item.kickoff.trim().split(' ');
+        const datePart = parts[0] || 'Hoje';
+        const timePart = parts[1] || parts[0];
+        const kickoffDate = parseMatchKickoff(datePart, timePart);
+        if (kickoffDate && kickoffDate.getTime() <= Date.now()) {
+          return {
+            success: false,
+            message: `O jogo ${item.matchTitle} já iniciou. As apostas foram encerradas para esta partida. Remova-o do boletim para continuar.`,
+          };
+        }
+      }
     }
 
     setIsSubmitting(true);

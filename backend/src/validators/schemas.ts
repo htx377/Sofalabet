@@ -58,7 +58,7 @@ export const betItemSchema = z.object({
 export const placeBetSchema = z.object({
   items: z.array(betItemSchema).min(1, 'Pelo menos uma seleção é necessária'),
   stake: z.number()
-    .gte(config.limits.minimumStake, `A aposta mínima é de ${config.limits.minimumStake} MZN`)
+    .gte(config.limits.minimumStake, `A aposta mínima é de ${config.limits.minimumStake} MT (${config.limits.minimumStake} MZN)`)
     .lte(config.limits.maximumStake, `A aposta máxima é de ${config.limits.maximumStake} MZN`),
   idempotencyKey: z.string().optional(),
 });

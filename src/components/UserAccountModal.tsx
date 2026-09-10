@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useRealtime } from '../context/RealtimeContext.tsx';
 import { Bet, WalletTransaction } from '../types.ts';
 import { api } from '../api.ts';
 import { DepositPanel } from './DepositPanel.tsx';
 import { WithdrawalPanel } from './WithdrawalPanel.tsx';
+import { subscribeToSettlement } from '../utils/settlementEvents.ts';
 import {
   Wallet,
   History,
@@ -19,6 +20,9 @@ import {
   Shield,
   Plus,
   Radio,
+  Search,
+  Filter,
+  Check,
 } from 'lucide-react';
 
 interface UserAccountModalProps {
@@ -36,6 +40,17 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [recentUpdatedBetId, setRecentUpdatedBetId] = useState<string | null>(null);
+
+  // Filtros da aba de histórico de apostas
+  const [betStatusFilter, setBetStatusFilter] = useState<'ALL' | 'PENDING' | 'WON' | 'LOST' | 'VOID'>('ALL');
+  const [betSearch, setBetSearch] = useState('');
+
+  // Sincroniza tab padrão caso prop externa mude (ex: clique em "Minhas Apostas" no Header)
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -57,6 +72,19 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
   useEffect(() => {
     fetchData();
   }, [user, activeTab]);
+
+  // Listener para atualização automática quando o administrador insere o resultado e liquida a partida
+  useEffect(() => {
+    const unsubscribe = subscribeToSettlement((payload) => {
+      console.log('[UserAccountModal] Evento de liquidação recebido:', payload);
+      fetchData();
+      refreshUserData().catch(console.error);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [refreshUserData]);
 
   // Listener em tempo real para atualização automática de apostas e estados (WON, LOST, PENDING, VOID)
   useEffect(() => {
@@ -94,6 +122,54 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
       unsubscribe();
     };
   }, [user, onBetChange, refreshUserData]);
+
+  // Estatísticas calculadas do histórico de apostas
+  const betStats = useMemo(() => {
+    const totalCount = bets.length;
+    const pendingCount = bets.filter((b) => b.status === 'PENDING').length;
+    const wonCount = bets.filter((b) => b.status === 'WON').length;
+    const lostCount = bets.filter((b) => b.status === 'LOST').length;
+
+    const totalStaked = bets.reduce((sum, b) => sum + b.stake, 0);
+    const totalWonPayout = bets
+      .filter((b) => b.status === 'WON')
+      .reduce((sum, b) => sum + b.potentialReturn, 0);
+
+    const winRate = totalCount > 0 && (wonCount + lostCount) > 0
+      ? Math.round((wonCount / (wonCount + lostCount)) * 100)
+      : 0;
+
+    return {
+      totalCount,
+      pendingCount,
+      wonCount,
+      lostCount,
+      totalStaked,
+      totalWonPayout,
+      winRate,
+    };
+  }, [bets]);
+
+  // Apostas filtradas por busca e status
+  const filteredBets = useMemo(() => {
+    return bets.filter((bet) => {
+      if (betStatusFilter !== 'ALL' && bet.status !== betStatusFilter) {
+        return false;
+      }
+      if (betSearch.trim()) {
+        const query = betSearch.toLowerCase();
+        const matchesId = bet.id.toLowerCase().includes(query);
+        const matchesMatch = bet.items.some(
+          (item) =>
+            item.matchTitle.toLowerCase().includes(query) ||
+            item.competitionName.toLowerCase().includes(query) ||
+            item.selectionLabel.toLowerCase().includes(query)
+        );
+        return matchesId || matchesMatch;
+      }
+      return true;
+    });
+  }, [bets, betStatusFilter, betSearch]);
 
   if (!user) return null;
 
@@ -383,11 +459,11 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-700/50">
                     <span className="text-slate-400">Aposta Mínima:</span>
-                    <span className="font-bold text-white">10.00 MZN</span>
+                    <span className="font-bold text-amber-400">20.00 MT</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-700/50">
                     <span className="text-slate-400">Aposta Máxima:</span>
-                    <span className="font-bold text-white">50,000.00 MZN</span>
+                    <span className="font-bold text-white">50,000.00 MT</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">Proteção Saldo Negativo:</span>
@@ -402,7 +478,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                   <span>Depósitos e Levantamentos:</span>
                 </p>
                 <p className="text-slate-400 leading-relaxed">
-                  As creditações de saldo, prémios de vitórias e levantamentos de fundos em MZN são auditados e validados pelo Super Administrador da SofalaBet através do sistema oficial de tesouraria.
+                  As creditações de saldo, prémios de vitórias e levantamentos de fundos em MT (MZN) são auditados e validados pelo Super Administrador da SofalaBet através do sistema oficial de tesouraria.
                 </p>
               </div>
             </div>
@@ -433,132 +509,244 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
 
         {/* ================= TAB: BETS HISTORY ================= */}
         {activeTab === 'bets' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between pb-2">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-slate-400">Consulte o histórico de todas as apostas efetuadas nesta conta</p>
+          <div className="space-y-4">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-800">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <History className="w-4 h-4 text-emerald-400" />
+                  <span>Histórico de Apostas da Conta</span>
+                  <span className="text-[11px] font-normal text-slate-400">({bets.length} registadas)</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Acompanhe os resultados das suas apostas, prémios ganhos e bilhetes pendentes.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
                 {isLiveConnected && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 animate-pulse">
                     <Radio className="w-2.5 h-2.5 text-emerald-400" />
                     <span>Tempo Real</span>
                   </span>
                 )}
+                <button
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-emerald-400 font-semibold flex items-center gap-1 transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  <span>Atualizar</span>
+                </button>
               </div>
-              <button
-                onClick={fetchData}
-                className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Atualizar</span>
-              </button>
             </div>
 
+            {/* Performance Metric Cards */}
+            {bets.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3">
+                  <span className="text-[11px] text-slate-400 block font-medium">Total Apostado</span>
+                  <span className="text-base font-black text-white mt-0.5 block">
+                    {betStats.totalStaked.toFixed(2)} <span className="text-[10px] font-normal text-slate-400">MT</span>
+                  </span>
+                </div>
+                <div className="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3">
+                  <span className="text-[11px] text-slate-400 block font-medium">Prémios Ganhos</span>
+                  <span className="text-base font-black text-emerald-400 mt-0.5 block">
+                    {betStats.totalWonPayout.toFixed(2)} <span className="text-[10px] font-normal text-emerald-400">MT</span>
+                  </span>
+                </div>
+                <div className="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3">
+                  <span className="text-[11px] text-slate-400 block font-medium">Em Aberto / Pendentes</span>
+                  <span className="text-base font-black text-amber-400 mt-0.5 block">
+                    {betStats.pendingCount} <span className="text-[10px] font-normal text-slate-400">bilhetes</span>
+                  </span>
+                </div>
+                <div className="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3">
+                  <span className="text-[11px] text-slate-400 block font-medium">Taxa de Acerto</span>
+                  <span className="text-base font-black text-teal-300 mt-0.5 block">
+                    {betStats.winRate}% <span className="text-[10px] font-normal text-slate-400">({betStats.wonCount}V / {betStats.lostCount}D)</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Filter & Search Bar */}
+            {bets.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-850/60 p-2.5 rounded-xl border border-slate-800">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 mr-1">
+                    <Filter className="w-3 h-3 text-slate-400" />
+                    Filtrar:
+                  </span>
+                  {(
+                    [
+                      { key: 'ALL', label: 'Todas' },
+                      { key: 'PENDING', label: 'Pendentes' },
+                      { key: 'WON', label: 'Ganhas' },
+                      { key: 'LOST', label: 'Perdidas' },
+                      { key: 'VOID', label: 'Anuladas' },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setBetStatusFilter(tab.key)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        betStatusFilter === tab.key
+                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full sm:w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={betSearch}
+                    onChange={(e) => setBetSearch(e.target.value)}
+                    placeholder="Pesquisar time, código..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  {betSearch && (
+                    <button
+                      onClick={() => setBetSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Bet List Container */}
             {bets.length === 0 ? (
-              <div className="py-12 text-center text-slate-500">
-                <Clock className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                <p className="text-sm font-semibold text-slate-400">Ainda não realizou nenhuma aposta</p>
-                <p className="text-xs text-slate-500">Navegue pelos jogos disponíveis e selecione as suas equipas favoritas.</p>
+              <div className="py-12 text-center text-slate-500 bg-slate-800/20 rounded-2xl border border-slate-800">
+                <Clock className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+                <p className="text-sm font-semibold text-slate-300">Ainda não realizou nenhuma aposta</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Consulte os jogos disponíveis na página inicial e selecione as suas equipas favoritas para colocar a primeira aposta (mínimo de 20 MT).
+                </p>
+              </div>
+            ) : filteredBets.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 bg-slate-800/20 rounded-xl border border-slate-800">
+                <p className="text-xs font-semibold">Nenhuma aposta encontrada com os filtros selecionados.</p>
+                <button
+                  onClick={() => {
+                    setBetStatusFilter('ALL');
+                    setBetSearch('');
+                  }}
+                  className="mt-2 text-xs text-emerald-400 hover:underline font-bold"
+                >
+                  Limpar filtros
+                </button>
               </div>
             ) : (
-              bets.map((bet) => {
-                const isJustUpdated = recentUpdatedBetId === bet.id;
-                return (
-                  <div
-                    key={bet.id}
-                    className={`bg-slate-800/70 border rounded-2xl p-4 space-y-3 transition-all duration-500 ${
-                      isJustUpdated
-                        ? 'border-emerald-400/80 shadow-lg shadow-emerald-500/20 bg-slate-800/95 ring-1 ring-emerald-400/50'
-                        : 'border-slate-700/80'
-                    }`}
-                  >
-                    {/* Bet Top bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-slate-400 text-[11px]">#{bet.id.substring(0, 12)}</span>
-                        <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-700 text-slate-300">
-                          {bet.type}
-                        </span>
-                        {isJustUpdated && (
-                          <span className="px-1.5 py-0.5 rounded font-black text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
-                            RESOLVIDA AGORA
+              <div className="space-y-3">
+                {filteredBets.map((bet) => {
+                  const isJustUpdated = recentUpdatedBetId === bet.id;
+                  return (
+                    <div
+                      key={bet.id}
+                      className={`bg-slate-800/70 border rounded-2xl p-4 space-y-3 transition-all duration-500 ${
+                        isJustUpdated
+                          ? 'border-emerald-400/80 shadow-lg shadow-emerald-500/20 bg-slate-800/95 ring-1 ring-emerald-400/50'
+                          : 'border-slate-700/80 hover:border-slate-650'
+                      }`}
+                    >
+                      {/* Bet Top bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-emerald-400 text-[11px] font-bold">#{bet.id.substring(0, 12)}</span>
+                          <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-slate-700 text-slate-300">
+                            {bet.type}
                           </span>
-                        )}
-                        <span className="text-slate-400 text-[11px]">
-                          {new Date(bet.createdAt).toLocaleString('pt-PT')}
-                        </span>
-                      </div>
+                          {isJustUpdated && (
+                            <span className="px-1.5 py-0.5 rounded font-black text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                              RESOLVIDA AGORA
+                            </span>
+                          )}
+                          <span className="text-slate-400 text-[11px]">
+                            {new Date(bet.createdAt).toLocaleString('pt-PT')}
+                          </span>
+                        </div>
 
-                    {/* Status Badge */}
-                    <div>
-                      {bet.status === 'PENDING' && (
-                        <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> PENDENTE
-                        </span>
-                      )}
-                      {bet.status === 'WON' && (
-                        <span className="text-[11px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> GANHA (+{bet.potentialReturn.toFixed(2)} MZN)
-                        </span>
-                      )}
-                      {bet.status === 'LOST' && (
-                        <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                          <XCircle className="w-3.5 h-3.5" /> PERDIDA
-                        </span>
-                      )}
-                      {bet.status === 'VOID' && (
-                        <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                          <RotateCcw className="w-3.5 h-3.5" /> ANULADA (REEMBOLSADA)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bet items */}
-                  <div className="space-y-1.5">
-                    {bet.items.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-slate-900/60 rounded-xl p-2.5 text-xs flex items-center justify-between border border-slate-800"
-                      >
+                        {/* Status Badge */}
                         <div>
-                          <p className="font-bold text-white">{item.matchTitle}</p>
-                          <p className="text-[11px] text-slate-400">
-                            {item.marketName} • Seleção: <strong className="text-emerald-400">{item.outcome}</strong>
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-emerald-400">Odd {item.oddsAtBetTime.toFixed(2)}</span>
-                          <span className={`block text-[10px] font-bold ${
-                            item.status === 'WON' ? 'text-emerald-400' : item.status === 'LOST' ? 'text-rose-400' : 'text-slate-400'
-                          }`}>
-                            {item.status}
-                          </span>
+                          {bet.status === 'PENDING' && (
+                            <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" /> PENDENTE
+                            </span>
+                          )}
+                          {bet.status === 'WON' && (
+                            <span className="text-[11px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-md flex items-center gap-1 shadow-sm shadow-emerald-500/20">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> GANHA (+{bet.potentialReturn.toFixed(2)} MT)
+                            </span>
+                          )}
+                          {bet.status === 'LOST' && (
+                            <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
+                              <XCircle className="w-3.5 h-3.5 text-rose-400" /> PERDIDA
+                            </span>
+                          )}
+                          {bet.status === 'VOID' && (
+                            <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
+                              <RotateCcw className="w-3.5 h-3.5 text-cyan-400" /> ANULADA (REEMBOLSADA)
+                            </span>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Bet Financial Footer */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-700/50 text-xs">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <div>
-                        <span className="text-slate-400">Apostado: </span>
-                        <strong className="text-white">{bet.stake.toFixed(2)} MZN</strong>
+                      {/* Bet items */}
+                      <div className="space-y-1.5">
+                        {bet.items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-slate-900/60 rounded-xl p-2.5 text-xs flex items-center justify-between border border-slate-800"
+                          >
+                            <div>
+                              <p className="font-bold text-white">{item.matchTitle}</p>
+                              <p className="text-[11px] text-slate-400">
+                                {item.marketName} • Seleção: <strong className="text-emerald-400">{item.outcome}</strong> ({item.selectionLabel})
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-mono font-bold text-emerald-400">Odd {item.oddsAtBetTime.toFixed(2)}</span>
+                              <span className={`block text-[10px] font-bold ${
+                                item.status === 'WON' ? 'text-emerald-400' : item.status === 'LOST' ? 'text-rose-400' : 'text-slate-400'
+                              }`}>
+                                {item.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <span className="text-slate-400">Odd Total: </span>
-                        <strong className="text-emerald-400">{bet.totalOdds.toFixed(2)}</strong>
+
+                      {/* Bet Financial Footer */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-700/50 text-xs">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <div>
+                            <span className="text-slate-400">Apostado: </span>
+                            <strong className="text-white">{bet.stake.toFixed(2)} MT</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Odd Total: </span>
+                            <strong className="text-emerald-400">{bet.totalOdds.toFixed(2)}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-2 bg-slate-900/60 sm:bg-transparent p-2 sm:p-0 rounded-lg">
+                          <span className="text-slate-400">Possível Retorno: </span>
+                          <strong className="text-emerald-400 font-black text-sm">{bet.potentialReturn.toFixed(2)} MT</strong>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between sm:justify-end gap-2 bg-slate-900/60 sm:bg-transparent p-2 sm:p-0 rounded-lg">
-                      <span className="text-slate-400">Possível Retorno: </span>
-                      <strong className="text-emerald-400 font-black text-sm">{bet.potentialReturn.toFixed(2)} MZN</strong>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

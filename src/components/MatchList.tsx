@@ -4,7 +4,9 @@ import { api } from '../api.ts';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
 import { useRealtime } from '../context/RealtimeContext.tsx';
 import { TeamBadge } from './TeamBadge.tsx';
-import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio } from 'lucide-react';
+import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio, Lock } from 'lucide-react';
+import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
+import { subscribeToSettlement } from '../utils/settlementEvents.ts';
 
 export const MatchList: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -14,9 +16,18 @@ export const MatchList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pulsingMatchId, setPulsingMatchId] = useState<string | null>(null);
+  const [, setTick] = useState<number>(Date.now());
 
   const { items: slipItems, toggleSelection, updateSelectionOdds } = useBetSlip();
   const { isLiveConnected, onMatchChange } = useRealtime();
+
+  // Relógio a cada 10 segundos para verificar imediatamente o início das partidas e bloquear apostas
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(Date.now());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchMatches = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -86,6 +97,38 @@ export const MatchList: React.FC = () => {
       unsubscribe();
     };
   }, [onMatchChange, updateSelectionOdds]);
+
+  // Subscrição a eventos de liquidação de resultados inseridos pelo administrador
+  useEffect(() => {
+    const unsubscribe = subscribeToSettlement((payload) => {
+      console.log('[MatchList] Notificação de liquidação de partida recebida:', payload);
+      setPulsingMatchId(payload.matchId);
+      setTimeout(() => {
+        setPulsingMatchId((curr) => (curr === payload.matchId ? null : curr));
+      }, 4000);
+
+      // Atualiza imediatamente o jogo para FINISHED com os respetivos golos
+      setMatches((prevMatches) =>
+        prevMatches.map((m) => {
+          if (m.id === payload.matchId) {
+            return {
+              ...m,
+              status: 'FINISHED',
+              homeScore: payload.homeScore,
+              awayScore: payload.awayScore,
+            };
+          }
+          return m;
+        })
+      );
+      // Recarrega em plano de fundo para sincronizar dados adicionais
+      fetchMatches(true);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleTierChange = (tier: 'ALL' | CompetitionCategory) => {
     setSelectedTier(tier);
@@ -264,7 +307,9 @@ export const MatchList: React.FC = () => {
           const drawSelection = market?.selections.find((s) => s.outcome === 'X');
           const awaySelection = market?.selections.find((s) => s.outcome === '2');
 
-          const isOpen = match.status === 'OPEN';
+          const isBettingOpen = isMatchBettingOpen(match);
+          const started = isMatchStarted(match);
+          const isFinished = match.status === 'FINISHED';
           const isJustUpdated = pulsingMatchId === match.id;
 
           return (
@@ -273,18 +318,33 @@ export const MatchList: React.FC = () => {
               className={`bg-slate-900 border rounded-2xl p-3 sm:p-3.5 transition-all duration-500 shadow-sm ${
                 isJustUpdated
                   ? 'border-emerald-400/80 shadow-md shadow-emerald-500/20 bg-emerald-950/20 ring-1 ring-emerald-500/40'
+                  : !isBettingOpen
+                  ? 'border-slate-800/70 bg-slate-900/70'
                   : 'border-slate-800 hover:border-slate-700/80'
               }`}
             >
-              {/* Card Header: League Name & Kickoff Date/Time */}
-              <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-800/80 text-xs">
-                <div className="flex items-center gap-1.5">
+              {/* Card Header: League Name & Kickoff Date/Time & Status */}
+              <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-800/80 text-xs flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-black text-[11px] text-emerald-400 uppercase tracking-wide">
                     {match.competitionName}
                   </span>
+                  {isFinished ? (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                      🏁 Encerrado ({match.homeScore ?? 0} - {match.awayScore ?? 0})
+                    </span>
+                  ) : started || !isBettingOpen ? (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-rose-400" /> Partida Iniciada • Apostas Bloqueadas
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Apostas Abertas
+                    </span>
+                  )}
                   {isJustUpdated && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
-                      Odds Atualizadas
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                      Atualizado
                     </span>
                   )}
                 </div>
@@ -331,7 +391,7 @@ export const MatchList: React.FC = () => {
                   {/* 1: Home Win */}
                   {homeSelection && (
                     <button
-                      disabled={!isOpen}
+                      disabled={!isBettingOpen}
                       onClick={() =>
                         toggleSelection({
                           matchId: match.id,
@@ -346,12 +406,12 @@ export const MatchList: React.FC = () => {
                           odds: homeSelection.odds,
                         })
                       }
-                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation min-h-[46px] ${
+                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all touch-manipulation min-h-[46px] ${
                         isSelectionInSlip(homeSelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
-                          : isOpen
-                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white'
-                          : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
+                          : isBettingOpen
+                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white active:scale-95'
+                          : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                       }`}
                     >
                       <span className={`text-[10px] font-bold mb-0.5 ${
@@ -362,13 +422,18 @@ export const MatchList: React.FC = () => {
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
                         {homeSelection.odds.toFixed(2)}
                       </span>
+                      {!isBettingOpen && (
+                        <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
                     </button>
                   )}
 
                   {/* X: Draw */}
                   {drawSelection && (
                     <button
-                      disabled={!isOpen}
+                      disabled={!isBettingOpen}
                       onClick={() =>
                         toggleSelection({
                           matchId: match.id,
@@ -383,12 +448,12 @@ export const MatchList: React.FC = () => {
                           odds: drawSelection.odds,
                         })
                       }
-                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation min-h-[46px] ${
+                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all touch-manipulation min-h-[46px] ${
                         isSelectionInSlip(drawSelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
-                          : isOpen
-                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white'
-                          : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
+                          : isBettingOpen
+                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white active:scale-95'
+                          : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                       }`}
                     >
                       <span className={`text-[10px] font-bold mb-0.5 ${
@@ -399,13 +464,18 @@ export const MatchList: React.FC = () => {
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
                         {drawSelection.odds.toFixed(2)}
                       </span>
+                      {!isBettingOpen && (
+                        <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
                     </button>
                   )}
 
                   {/* 2: Away Win */}
                   {awaySelection && (
                     <button
-                      disabled={!isOpen}
+                      disabled={!isBettingOpen}
                       onClick={() =>
                         toggleSelection({
                           matchId: match.id,
@@ -420,12 +490,12 @@ export const MatchList: React.FC = () => {
                           odds: awaySelection.odds,
                         })
                       }
-                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all active:scale-95 touch-manipulation min-h-[46px] ${
+                      className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all touch-manipulation min-h-[46px] ${
                         isSelectionInSlip(awaySelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
-                          : isOpen
-                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white'
-                          : 'bg-slate-800/40 border-slate-800/60 opacity-50 cursor-not-allowed text-slate-500'
+                          : isBettingOpen
+                          ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white active:scale-95'
+                          : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                       }`}
                     >
                       <span className={`text-[10px] font-bold mb-0.5 ${
@@ -436,6 +506,11 @@ export const MatchList: React.FC = () => {
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
                         {awaySelection.odds.toFixed(2)}
                       </span>
+                      {!isBettingOpen && (
+                        <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
+                          <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
                     </button>
                   )}
                 </div>

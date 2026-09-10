@@ -25,6 +25,7 @@ interface HeaderProps {
   openAuthModal: (mode: 'login' | 'register') => void;
   onOpenDeposit?: () => void;
   onOpenWithdraw?: () => void;
+  onOpenBets?: () => void;
   onTriggerSecretAdmin?: () => void;
 }
 
@@ -34,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   openAuthModal,
   onOpenDeposit,
   onOpenWithdraw,
+  onOpenBets,
   onTriggerSecretAdmin,
 }) => {
   const { user, logout } = useAuth();
@@ -122,17 +124,35 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {user && (
-              <button
-                id="nav-account-btn"
-                onClick={() => handleNav('account')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  currentView === 'account'
-                    ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                Minha Conta & Apostas
-              </button>
+              <>
+                <button
+                  id="nav-my-bets-btn"
+                  onClick={() => {
+                    if (onOpenBets) {
+                      onOpenBets();
+                    } else {
+                      handleNav('account');
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all border border-transparent hover:border-slate-700"
+                  title="Consultar meu histórico de apostas"
+                >
+                  <History className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Minhas Apostas</span>
+                </button>
+
+                <button
+                  id="nav-account-btn"
+                  onClick={() => handleNav('account')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+                    currentView === 'account'
+                      ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  Minha Conta
+                </button>
+              </>
             )}
 
             {/* Admin navigation button */}
@@ -379,17 +399,35 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 {user && (
-                  <button
-                    onClick={() => handleNav('account')}
-                    className={`w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 transition-colors ${
-                      currentView === 'account'
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <History className="w-4 h-4 text-emerald-400" />
-                    <span>Minha Conta & Histórico</span>
-                  </button>
+                  <>
+                    <button
+                      id="mobile-drawer-bets-btn"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        if (onOpenBets) {
+                          onOpenBets();
+                        } else {
+                          handleNav('account');
+                        }
+                      }}
+                      className="w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                    >
+                      <History className="w-4 h-4 text-emerald-400" />
+                      <span>Histórico de Minhas Apostas</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleNav('account')}
+                      className={`w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 transition-colors ${
+                        currentView === 'account'
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <User className="w-4 h-4 text-emerald-400" />
+                      <span>Minha Carteira & Conta</span>
+                    </button>
+                  </>
                 )}
 
                 {/* Admin Navigation in mobile drawer */}

@@ -20,7 +20,12 @@ import {
   Trash2,
   Eye,
   Paperclip,
+  Copy,
+  Check,
 } from 'lucide-react';
+
+export const OFFICIAL_EMOLA_NUMBER = '867090687';
+export const OFFICIAL_EMOLA_NAME = 'Aninha Basto';
 
 interface DepositPanelProps {
   onSuccess?: (newBalance: number) => void;
@@ -56,6 +61,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+  const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -398,7 +404,8 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                 </div>
                 <div>
                   <span className="font-black text-xs sm:text-sm text-white block">e-Mola</span>
-                  <span className="text-[10px] text-slate-400 block">86 / 87</span>
+                  <span className="text-[10px] text-orange-400 font-bold block">{OFFICIAL_EMOLA_NUMBER}</span>
+                  <span className="text-[9px] text-slate-400 block truncate">{OFFICIAL_EMOLA_NAME}</span>
                 </div>
               </button>
 
@@ -501,12 +508,76 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
             </div>
           </div>
 
-          {/* 3. Account / Phone Details */}
+          {/* 3. Account / Phone Details & Official Instructions */}
+          {method === 'EMOLA' && (
+            <div className="bg-gradient-to-r from-orange-950/40 via-amber-950/30 to-slate-900 border border-orange-500/40 rounded-2xl p-4 text-xs space-y-3.5 shadow-lg shadow-orange-950/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-orange-400 font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-black shadow">
+                    e
+                  </div>
+                  <div>
+                    <span className="text-sm font-black text-white block">Conta Oficial e-Mola (Movitel)</span>
+                    <span className="text-[10px] text-orange-300 font-medium block">Destinatário oficial para depósito de fundos</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                  Activo
+                </span>
+              </div>
+
+              {/* Account details card */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-950/90 border border-orange-500/30 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Número e-Mola:</span>
+                    <span className="text-lg font-black text-orange-400 font-mono tracking-wide">{OFFICIAL_EMOLA_NUMBER}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(OFFICIAL_EMOLA_NUMBER);
+                      setCopiedNumber(true);
+                      setTimeout(() => setCopiedNumber(false), 2000);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 text-xs font-bold border border-orange-500/30 flex items-center gap-1.5 transition-all active:scale-95"
+                    title="Copiar número e-Mola"
+                  >
+                    {copiedNumber ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedNumber ? 'Copiado!' : 'Copiar'}</span>
+                  </button>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950/90 border border-orange-500/30 flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nome Registado:</span>
+                  <span className="text-base font-black text-white">{OFFICIAL_EMOLA_NAME}</span>
+                </div>
+              </div>
+
+              {/* Step-by-step instructions */}
+              <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+                <div className="font-bold text-white flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Instruções Rápidas no Telemóvel:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-300 pl-0.5 leading-relaxed">
+                  <li>No seu telemóvel Movitel, marque <strong className="text-orange-400 font-mono">*898#</strong> ou aceda à App e-Mola.</li>
+                  <li>Escolha <strong className="text-white">Transferir / Enviar Dinheiro</strong> para o número <strong className="text-orange-400 font-mono">{OFFICIAL_EMOLA_NUMBER}</strong>.</li>
+                  <li>Confirme que o nome do titular apresentado é <strong className="text-white">{OFFICIAL_EMOLA_NAME}</strong>.</li>
+                  <li>Introduza o valor {numericAmount > 0 ? <strong className="text-emerald-400 font-mono">({numericAmount.toFixed(2)} MZN)</strong> : ''} e confirme com o seu PIN da e-Mola.</li>
+                  <li>Introduza abaixo o seu número de telemóvel e anexe o comprovativo da SMS recebida para crédito imediato.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
           {method !== 'BANK' ? (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-bold text-slate-300">
-                  3. Número de Celular da Carteira Móvel
+                  {method === 'EMOLA'
+                    ? '3. O Seu Número de Celular Movitel (com o qual efetuou o envio)'
+                    : '3. Número de Celular da Carteira Móvel'}
                 </label>
                 <span className="text-[10px] text-slate-400">
                   {method === 'MPESA' && 'Prefixo 84 ou 85'}
@@ -525,14 +596,16 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="84 123 4567"
+                  placeholder={method === 'EMOLA' ? '86 700 0000' : '84 123 4567'}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-20 pr-4 py-2.5 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <span>
-                  Receberá uma solicitação push no seu telemóvel para digitar o seu PIN e validar o depósito.
+                  {method === 'EMOLA'
+                    ? 'Utilizado pela tesouraria para validar o recebimento da transferência na conta de Aninha Basto (867090687).'
+                    : 'Receberá uma solicitação push no seu telemóvel para digitar o seu PIN e validar o depósito.'}
                 </span>
               </p>
             </div>

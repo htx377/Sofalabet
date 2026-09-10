@@ -5,6 +5,7 @@ import { config } from '../config/index.ts';
 import { WalletService } from './walletService.ts';
 import { betMutex } from '../utils/mutex.ts';
 import { supabaseService } from '../db/supabase.ts';
+import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
 
 export class BetService {
   static async placeBet(params: {
@@ -29,9 +30,9 @@ export class BetService {
     if (!user) throw new Error('Utilizador não encontrado');
     if (user.isBlocked) throw new Error('Conta bloqueada. Não é possível efetuar apostas.');
 
-    // Validate stake limits
+    // Validate stake limits (Mínimo de 20 MT)
     if (stake < config.limits.minimumStake) {
-      throw new Error(`O montante mínimo por aposta é ${config.limits.minimumStake} MZN`);
+      throw new Error(`O montante mínimo por aposta é ${config.limits.minimumStake} MT (${config.limits.minimumStake} MZN)`);
     }
     if (stake > config.limits.maximumStake) {
       throw new Error(`O montante máximo por aposta é ${config.limits.maximumStake} MZN`);
@@ -54,14 +55,12 @@ export class BetService {
         const match = db.matches.get(item.matchId);
         if (!match) throw new Error(`Jogo ${item.matchId} não encontrado`);
 
-        if (match.status !== 'OPEN') {
+        // Check if match is open and kickoff has not occurred
+        if (!isMatchBettingOpen(match)) {
+          if (isMatchStarted(match)) {
+            throw new Error(`O jogo ${match.homeTeam} vs ${match.awayTeam} já iniciou. As apostas para esta partida foram bloqueadas.`);
+          }
           throw new Error(`O jogo ${match.homeTeam} vs ${match.awayTeam} não está aberto para apostas (Estado: ${match.status})`);
-        }
-
-        // Check if kickoff has already passed
-        const kickoffDateTime = new Date(`${match.kickoffDate}T${match.kickoffTime}:00`);
-        if (!isNaN(kickoffDateTime.getTime()) && kickoffDateTime.getTime() <= Date.now()) {
-          throw new Error(`O jogo ${match.homeTeam} vs ${match.awayTeam} já iniciou`);
         }
 
         const market = match.markets.find((m) => m.id === item.marketId);

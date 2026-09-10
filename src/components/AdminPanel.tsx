@@ -12,6 +12,7 @@ import {
 import { api } from '../api.ts';
 import { AdjustBalanceModal } from './AdjustBalanceModal.tsx';
 import { UserDetailModal } from './UserDetailModal.tsx';
+import { broadcastSettlement } from '../utils/settlementEvents.ts';
 import {
   Shield,
   Plus,
@@ -316,8 +317,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     if (!showResultModal) return;
     try {
       const res = await api.enterResult(showResultModal.id, homeScore, awayScore);
+      broadcastSettlement({
+        matchId: showResultModal.id,
+        homeScore,
+        awayScore,
+        settlement: res.settlement,
+      });
       setShowResultModal(null);
-      notifySuccess(`Jogo liquidado com sucesso! Placar: ${homeScore} - ${awayScore}. Vencedores pagos: ${res.settlement.totalWonBets}.`);
+      const paidCount = res.settlement?.wonBetsCount ?? res.settlement?.totalWonBets ?? 0;
+      notifySuccess(`Jogo liquidado com sucesso! Placar: ${homeScore} - ${awayScore}. Vencedores pagos: ${paidCount}.`);
       await loadData();
     } catch (err: any) {
       notifyError(err.message || 'Erro ao liquidar jogo');
@@ -1289,7 +1297,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                 Central de conferência e auditoria de talões, capturas de ecrã M-Pesa/e-Mola/mKesh e transferências bancárias enviadas pelos apostadores.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="px-3 py-1.5 rounded-xl bg-orange-500/15 border border-orange-500/30 font-bold text-orange-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+                <span>e-Mola Oficial: <strong>867090687</strong> (Aninha Basto)</span>
+              </span>
               <span className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 font-bold text-slate-300">
                 Total Registados: <strong className="text-emerald-400">{depositProofs.length}</strong>
               </span>
