@@ -174,9 +174,9 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
   if (!user) return null;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden text-white">
+    <div className="w-full max-w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden text-white">
       {/* Account Profile Header */}
-      <div className="p-6 bg-gradient-to-r from-slate-900 via-slate-800/80 to-slate-900 border-b border-slate-800">
+      <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-slate-800/80 to-slate-900 border-b border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-2xl text-emerald-400">
@@ -254,7 +254,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 bg-slate-900/60 px-3 sm:px-6 overflow-x-auto scrollbar-none">
+      <div className="flex border-b border-slate-800 bg-slate-900/60 px-2 sm:px-6 overflow-x-auto scrollbar-none w-full max-w-full">
         <button
           id="tab-wallet-overview"
           onClick={() => setActiveTab('wallet')}
@@ -322,7 +322,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
       </div>
 
       {/* Content Area */}
-      <div className="p-3.5 sm:p-6">
+      <div className="p-3 sm:p-6">
         {/* ================= TAB: WALLET OVERVIEW ================= */}
         {activeTab === 'wallet' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

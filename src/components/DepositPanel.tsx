@@ -686,9 +686,9 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
 
       {/* Full-Screen Receipt Preview Modal */}
       {showPreviewModal && (receiptPreview || successData?.receiptPreview) && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/80">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-full sm:max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-slate-800 bg-slate-950/80">
               <div className="flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs font-bold text-white">

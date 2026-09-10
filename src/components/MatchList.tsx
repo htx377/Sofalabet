@@ -175,11 +175,11 @@ export const MatchList: React.FC = () => {
       </div>
 
       {/* 2. Category Navigation Tabs: Todos | Moçambola | Provinciais | Distritais */}
-      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-2 sm:p-2.5 shadow-sm">
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-1.5 sm:p-2.5 shadow-sm w-full">
+        <div className="grid grid-cols-4 gap-1 sm:gap-2 w-full">
           <button
             onClick={() => handleTierChange('ALL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-2.5 rounded-xl text-[11px] sm:text-xs font-black min-h-[44px] transition-all ${
+            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
               selectedTier === 'ALL'
                 ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -191,7 +191,7 @@ export const MatchList: React.FC = () => {
 
           <button
             onClick={() => handleTierChange('MOCAMBOLA')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-2.5 rounded-xl text-[11px] sm:text-xs font-black min-h-[44px] transition-all ${
+            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
               selectedTier === 'MOCAMBOLA'
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -203,7 +203,7 @@ export const MatchList: React.FC = () => {
 
           <button
             onClick={() => handleTierChange('PROVINCIAL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-2.5 rounded-xl text-[11px] sm:text-xs font-black min-h-[44px] transition-all ${
+            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
               selectedTier === 'PROVINCIAL'
                 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -215,7 +215,7 @@ export const MatchList: React.FC = () => {
 
           <button
             onClick={() => handleTierChange('DISTRITAL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-2.5 rounded-xl text-[11px] sm:text-xs font-black min-h-[44px] transition-all ${
+            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
               selectedTier === 'DISTRITAL'
                 ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -227,7 +227,7 @@ export const MatchList: React.FC = () => {
         </div>
 
         {/* Specific Competition Pills Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 mt-2 border-t border-slate-800/60 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 mt-2 border-t border-slate-800/60 scrollbar-none w-full max-w-full">
           <button
             onClick={() => setSelectedCompetition('all')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
@@ -315,7 +315,7 @@ export const MatchList: React.FC = () => {
           return (
             <div
               key={match.id}
-              className={`bg-slate-900 border rounded-2xl p-3 sm:p-3.5 transition-all duration-500 shadow-sm ${
+              className={`w-full max-w-full overflow-hidden bg-slate-900 border rounded-2xl p-3 sm:p-3.5 transition-all duration-500 shadow-sm ${
                 isJustUpdated
                   ? 'border-emerald-400/80 shadow-md shadow-emerald-500/20 bg-emerald-950/20 ring-1 ring-emerald-500/40'
                   : !isBettingOpen
@@ -324,70 +324,70 @@ export const MatchList: React.FC = () => {
               }`}
             >
               {/* Card Header: League Name & Kickoff Date/Time & Status */}
-              <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-800/80 text-xs flex-wrap">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-[11px] text-emerald-400 uppercase tracking-wide">
+              <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-800/80 text-xs flex-wrap w-full">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+                  <span className="font-black text-[11px] text-emerald-400 uppercase tracking-wide truncate">
                     {match.competitionName}
                   </span>
                   {isFinished ? (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 shrink-0">
                       🏁 Encerrado ({match.homeScore ?? 0} - {match.awayScore ?? 0})
                     </span>
                   ) : started || !isBettingOpen ? (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0">
                       <Lock className="w-3 h-3 text-rose-400" /> Partida Iniciada • Apostas Bloqueadas
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                       Apostas Abertas
                     </span>
                   )}
                   {isJustUpdated && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse shrink-0">
                       Atualizado
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 text-slate-400 text-[11px] font-medium">
+                <div className="flex items-center gap-1 text-slate-400 text-[11px] font-medium shrink-0 ml-auto">
                   <Clock className="w-3 h-3 text-slate-400" />
                   <span>{match.kickoffDate}, {match.kickoffTime}</span>
                 </div>
               </div>
 
               {/* Match Teams + 1X2 Odds Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center w-full">
                 
                 {/* Teams Info with Badges and Names */}
-                <div className="md:col-span-6 space-y-2">
+                <div className="md:col-span-6 space-y-2 min-w-0 w-full">
                   {/* Home Team */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <TeamBadge teamName={match.homeTeam} className="w-7 h-7 sm:w-8 sm:h-8" />
-                      <span className="font-extrabold text-sm text-white tracking-tight">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <TeamBadge teamName={match.homeTeam} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
+                      <span className="font-extrabold text-sm text-white tracking-tight truncate" title={match.homeTeam}>
                         {match.homeTeam}
                       </span>
                     </div>
                     {match.homeScore !== null && match.homeScore !== undefined && (
-                      <span className="font-black text-base text-emerald-400 ml-2">{match.homeScore}</span>
+                      <span className="font-black text-base text-emerald-400 shrink-0 ml-1">{match.homeScore}</span>
                     )}
                   </div>
 
                   {/* Away Team */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <TeamBadge teamName={match.awayTeam} className="w-7 h-7 sm:w-8 sm:h-8" />
-                      <span className="font-extrabold text-sm text-slate-200 tracking-tight">
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <TeamBadge teamName={match.awayTeam} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
+                      <span className="font-extrabold text-sm text-slate-200 tracking-tight truncate" title={match.awayTeam}>
                         {match.awayTeam}
                       </span>
                     </div>
                     {match.awayScore !== null && match.awayScore !== undefined && (
-                      <span className="font-black text-base text-emerald-400 ml-2">{match.awayScore}</span>
+                      <span className="font-black text-base text-emerald-400 shrink-0 ml-1">{match.awayScore}</span>
                     )}
                   </div>
                 </div>
 
                 {/* 1X2 Odds Buttons */}
-                <div className="md:col-span-6 grid grid-cols-3 gap-1.5 sm:gap-2">
+                <div className="md:col-span-6 grid grid-cols-3 gap-1.5 sm:gap-2 w-full">
                   {/* 1: Home Win */}
                   {homeSelection && (
                     <button

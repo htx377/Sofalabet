@@ -134,7 +134,7 @@ function MainLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 overflow-x-hidden">
       
       {/* Toast Notification when Super Admin is triggered */}
       {adminToast && (
@@ -201,11 +201,11 @@ function MainLayout() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4 pb-24 md:pb-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-4 pb-28 md:pb-8">
         
         {/* View Routing */}
         {currentView === 'sportsbook' && (
-          <div className="flex flex-col lg:flex-row gap-5 items-start">
+          <div className="flex flex-col lg:flex-row gap-5 items-start w-full">
             {/* Left/Center Column: Match List */}
             <div className="flex-1 w-full min-w-0">
               <MatchList />
@@ -318,8 +318,8 @@ function MainLayout() {
         )}
       </nav>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-900 bg-slate-950 text-slate-500 py-6 sm:py-8 px-4 text-xs">
+      {/* Footer with optimized bottom spacing for mobile nav bar */}
+      <footer className="mt-auto border-t border-slate-900 bg-slate-950 text-slate-500 pt-6 sm:pt-8 pb-24 md:pb-8 px-4 text-xs">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-center md:text-left">
             <span className="font-extrabold text-white">SOFALABET</span>

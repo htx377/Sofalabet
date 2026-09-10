@@ -337,11 +337,11 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth, onViewHistory }) =
         {/* Expanded Mobile Sheet */}
         {isOpenMobile && (
           <div
-            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in"
+            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/85 backdrop-blur-sm animate-in fade-in"
             onClick={() => setIsOpenMobile(false)}
           >
             <div
-              className="w-full max-w-lg mx-auto bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl p-4 sm:p-5 text-white max-h-[88vh] flex flex-col"
+              className="w-full max-w-full sm:max-w-lg mx-auto bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl p-4 sm:p-5 text-white max-h-[90vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               
