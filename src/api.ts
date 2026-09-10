@@ -1,13 +1,14 @@
 const API_BASE = '/api';
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem('sofalabet_token');
+  return localStorage.getItem('zonabet_token') || localStorage.getItem('sofalabet_token');
 }
 
 export function setAuthToken(token: string | null): void {
   if (token) {
-    localStorage.setItem('sofalabet_token', token);
+    localStorage.setItem('zonabet_token', token);
   } else {
+    localStorage.removeItem('zonabet_token');
     localStorage.removeItem('sofalabet_token');
   }
 }

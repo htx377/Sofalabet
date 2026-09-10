@@ -478,7 +478,7 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                   <span>Depósitos e Levantamentos:</span>
                 </p>
                 <p className="text-slate-400 leading-relaxed">
-                  As creditações de saldo, prémios de vitórias e levantamentos de fundos em MT (MZN) são auditados e validados pelo Super Administrador da SofalaBet através do sistema oficial de tesouraria.
+                  As creditações de saldo, prémios de vitórias e levantamentos de fundos em MT (MZN) são auditados e validados pelo Super Administrador da ZONABET através do sistema oficial de tesouraria.
                 </p>
               </div>
             </div>

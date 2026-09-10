@@ -1,4 +1,4 @@
-// Prisma Schema for SofalaBet Sportsbook Engine
+// Prisma Schema for ZONABET Sportsbook Engine
 // Database: PostgreSQL with Decimal financial consistency
 
 generator client {

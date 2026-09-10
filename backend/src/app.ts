@@ -33,7 +33,7 @@ export function createExpressApp() {
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      service: 'SofalaBet API',
+      service: 'ZONABET API',
       currency: 'MZN',
       timestamp: new Date().toISOString(),
     });

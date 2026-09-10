@@ -118,7 +118,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   // Safe In-App Modals (replacing window.confirm and window.prompt)
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [userToResetPassword, setUserToResetPassword] = useState<User | null>(null);
-  const [tempPasswordInput, setTempPasswordInput] = useState('Sofala123!');
+  const [tempPasswordInput, setTempPasswordInput] = useState('Zona123!');
   const [copiedTempPassword, setCopiedTempPassword] = useState(false);
   const [isDeletingMatch, setIsDeletingMatch] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -1088,7 +1088,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                       <button
                         onClick={() => {
                           setUserToResetPassword(u);
-                          setTempPasswordInput('Sofala123!');
+                          setTempPasswordInput('Zona123!');
                           setCopiedTempPassword(false);
                         }}
                         className="p-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg border border-slate-700"
@@ -1536,7 +1536,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <a
                     href={selectedProof.receiptDataUrl}
-                    download={selectedProof.receiptFileName || 'comprovativo-sofalabet.png'}
+                    download={selectedProof.receiptFileName || 'comprovativo-zonabet.png'}
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1.5 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-400" />
@@ -2388,7 +2388,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                     type="text"
                     value={tempPasswordInput}
                     onChange={(e) => setTempPasswordInput(e.target.value)}
-                    placeholder="Ex: Sofala123!"
+                    placeholder="Ex: Zona123!"
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
                   />
                   <button
@@ -2408,10 +2408,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                   <span>Sugestões rápidas:</span>
                   <button
                     type="button"
-                    onClick={() => setTempPasswordInput('Sofala123!')}
+                    onClick={() => setTempPasswordInput('Zona123!')}
                     className="hover:text-cyan-400 underline"
                   >
-                    Sofala123!
+                    Zona123!
                   </button>
                   <span>•</span>
                   <button

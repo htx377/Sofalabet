@@ -1,5 +1,5 @@
 /**
- * Automated test suite for SofalaBet Sportsbook Engine
+ * Automated test suite for ZONABET Sportsbook Engine
  * Tests core business logic, ledger consistency, settlement, concurrency, and idempotency
  */
 
@@ -12,7 +12,7 @@ import bcrypt from 'bcryptjs';
 
 async function runTestSuite() {
   console.log('====================================================');
-  console.log('     SOFALABET AUTOMATED VERIFICATION TEST SUITE     ');
+  console.log('     ZONABET AUTOMATED VERIFICATION TEST SUITE       ');
   console.log('====================================================\n');
 
   let passed = 0;

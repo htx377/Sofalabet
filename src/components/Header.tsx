@@ -80,15 +80,15 @@ export const Header: React.FC<HeaderProps> = ({
           <div
             className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none active:opacity-90"
             onClick={handleLogoClick}
-            title="SofalaBet Moçambique"
+            title="ZONABET Moçambique"
           >
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center font-black text-base sm:text-xl text-slate-950 shadow-md shadow-emerald-500/20 shrink-0">
-              S
+              Z
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <span className="font-extrabold text-base sm:text-xl tracking-tight text-white">
-                  SOFALA<span className="text-emerald-400">BET</span>
+                  ZONA<span className="text-emerald-400">BET</span>
                 </span>
                 <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 uppercase tracking-wider">
                   MZN
@@ -292,10 +292,10 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base">
-                    S
+                    Z
                   </div>
                   <div>
-                    <span className="font-black text-white text-base tracking-tight">SOFALA<span className="text-emerald-400">BET</span></span>
+                    <span className="font-black text-white text-base tracking-tight">ZONA<span className="text-emerald-400">BET</span></span>
                     <span className="text-[10px] text-slate-400 block">Moçambique Oficial</span>
                   </div>
                 </div>
@@ -359,7 +359,7 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-800/80 border border-emerald-500/20 space-y-3">
                   <p className="text-xs text-slate-300">
-                    Junte-se à SofalaBet para apostar nos jogos do Moçambola e Provinciais.
+                    Junte-se à ZONABET para apostar nos jogos do Moçambola e Provinciais.
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -480,7 +480,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
               <div className="text-[10px] text-slate-500 text-center">
-                SofalaBet • Moçambique • M-Pesa & e-Mola
+                ZONABET • Moçambique • e-Mola Exclusivo
               </div>
             </div>
           </div>

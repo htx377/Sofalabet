@@ -80,7 +80,7 @@ export const SecretAdminModal: React.FC<SecretAdminModalProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Área oculta da SofalaBet Moçambique. Introduza as credenciais mestres para desbloquear.
+              Área oculta da ZONABET Moçambique. Introduza as credenciais mestres para desbloquear.
             </p>
           </div>
         </div>

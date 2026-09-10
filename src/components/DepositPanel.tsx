@@ -290,7 +290,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                 <span>Comprovativo Enviado para a Administração</span>
               </div>
               <p className="text-[11px] text-slate-300 leading-relaxed">
-                O seu comprovativo {successData.receiptFileName ? `(${successData.receiptFileName})` : ''} foi arquivado no sistema com sucesso. A equipa de tesouraria da SofalaBet tem acesso imediato para conferência e auditoria.
+                O seu comprovativo {successData.receiptFileName ? `(${successData.receiptFileName})` : ''} foi arquivado no sistema com sucesso. A equipa de tesouraria da ZONABET tem acesso imediato para conferência e auditoria.
               </p>
               {successData.receiptReference && (
                 <div className="text-[11px] font-mono text-emerald-300 bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/20">
@@ -359,7 +359,7 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
                     </span>
                   </div>
                   <span className="text-[11px] text-orange-300/90 font-medium block">
-                    Canal oficial e direto para carregamento de saldo SofalaBet
+                    Canal oficial e direto para carregamento de saldo ZONABET
                   </span>
                 </div>
               </div>

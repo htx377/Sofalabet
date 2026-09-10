@@ -41,7 +41,7 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
   // Action states
   const [actionLoading, setActionLoading] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [newPassword, setNewPassword] = useState('Sofala123!');
+  const [newPassword, setNewPassword] = useState('Zona123!');
 
   const loadUserData = async () => {
     if (!user) return;

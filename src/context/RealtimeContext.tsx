@@ -69,7 +69,7 @@ export const RealtimeProvider: React.FC<{ children: ReactNode }> = ({ children }
     const transformSupabaseBet = (row: any): Bet => ({
       id: row.id,
       userId: row.user_id,
-      userName: row.user_name || 'Apostador SofalaBet',
+      userName: row.user_name || 'Apostador ZONABET',
       userEmail: row.user_email || '',
       type: row.type || 'SINGLE',
       stake: Number(row.stake || 0),
@@ -81,7 +81,7 @@ export const RealtimeProvider: React.FC<{ children: ReactNode }> = ({ children }
       createdAt: row.placed_at || new Date().toISOString(),
     });
 
-    const channelName = `sofalabet-realtime-${Date.now()}`;
+    const channelName = `zonabet-realtime-${Date.now()}`;
     const channel = supabase.channel(channelName);
 
     // 1. Escutar alterações em tempo real na tabela de jogos (matches)

@@ -390,7 +390,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
           {/* Security badge */}
           <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
             <ShieldCheck className="w-4 h-4 text-orange-500" />
-            <span>Processamento verificado pelo sistema de tesouraria SofalaBet e rede Movitel</span>
+            <span>Processamento verificado pelo sistema de tesouraria ZONABET e rede Movitel</span>
           </div>
         </form>
       )}

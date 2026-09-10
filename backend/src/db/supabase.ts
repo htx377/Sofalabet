@@ -573,7 +573,7 @@ class SupabaseService {
           dbStore.bets.set(b.id, {
             id: b.id,
             userId: b.user_id,
-            userName: u?.name || 'Apostador SofalaBet',
+            userName: u?.name || 'Apostador ZONABET',
             userEmail: u?.email || '',
             type: b.type,
             stake: Number(b.stake),

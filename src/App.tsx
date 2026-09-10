@@ -322,7 +322,7 @@ function MainLayout() {
       <footer className="mt-auto border-t border-slate-900 bg-slate-950 text-slate-500 pt-6 sm:pt-8 pb-24 md:pb-8 px-4 text-xs">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-center md:text-left">
-            <span className="font-extrabold text-white">SOFALABET</span>
+            <span className="font-extrabold text-white">ZONABET</span>
             <span>•</span>
             <span className="text-slate-400">
               Moçambique • Operações em Meticais (MZN / MT)

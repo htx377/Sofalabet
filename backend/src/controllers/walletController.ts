@@ -85,7 +85,7 @@ export class WalletController {
       const depositProof = db.addDepositProof({
         id: `proof-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         userId: req.user.userId,
-        userName: user?.name || 'Apostador SofalaBet',
+        userName: user?.name || 'Apostador ZONABET',
         userPhone: targetPhone,
         userEmail: user?.email || '',
         amount,
@@ -97,7 +97,7 @@ export class WalletController {
         receiptFileSize,
         notes,
         status: 'APPROVED',
-        reviewedBy: 'Sistema SofalaBet / Instantâneo',
+        reviewedBy: 'Sistema ZONABET / Instantâneo',
         reviewNotes: receiptFileName
           ? `Comprovativo enviado pelo apostador (${receiptFileName}). Arquivado no sistema da administração.`
           : 'Depósito registrado via canal de pagamento móvel.',

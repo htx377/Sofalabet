@@ -123,7 +123,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           <div className="mb-4 bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-3 flex items-start gap-2.5">
             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-emerald-300">Registo Rápido SofalaBet</p>
+              <p className="text-xs font-bold text-emerald-300">Registo Rápido ZONABET</p>
               <p className="text-[11px] text-slate-300 mt-0.5">
                 Registe-se com o seu número de celular e receba <strong>1.000,00 MZN</strong> de saldo bónus imediato!
               </p>

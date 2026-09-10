@@ -376,7 +376,7 @@ export class AdminController {
   static resetUserPassword(req: AuthenticatedRequest, res: Response): void {
     if (!req.user) return;
     const { id } = req.params;
-    const newPassword = req.body.newPassword || 'Sofala123!';
+    const newPassword = req.body.newPassword || 'Zona123!';
 
     if (typeof newPassword !== 'string' || newPassword.length < 6) {
       res.status(400).json({ error: 'A palavra-passe deve ter pelo menos 6 caracteres.' });

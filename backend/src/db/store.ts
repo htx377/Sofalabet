@@ -163,12 +163,12 @@ class DatabaseStore {
     ];
 
     // 3. Seed Users
-    // Super Admin 1: 872344381 / 12345678j (Super Administrador SofalaBet)
+    // Super Admin 1: 872344381 / 12345678j (Super Administrador ZONABET)
     const superAdminPasswordHash = bcrypt.hashSync('12345678j', 10);
     const superAdminUser: User = {
       id: 'usr-superadmin-01',
-      name: 'Super Administrador SofalaBet',
-      email: 'admin@sofalabet.mz',
+      name: 'Super Administrador ZONABET',
+      email: 'admin@zonabet.mz',
       phone: '+258872344381',
       passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
@@ -191,7 +191,7 @@ class DatabaseStore {
     const admin2PasswordHash = bcrypt.hashSync('Admin123!ChangeMe', 10);
     const admin2User: User = {
       id: 'usr-superadmin-02',
-      name: 'Gestor Geral SofalaBet',
+      name: 'Gestor Geral ZONABET',
       email: 'admin@example.com',
       phone: '+258872344380',
       passwordHash: admin2PasswordHash,
@@ -213,7 +213,7 @@ class DatabaseStore {
 
     const userAdminAccount: User = {
       id: 'usr-superadmin-03',
-      name: 'Administrador SofalaBet (Isa)',
+      name: 'Administrador ZONABET (Isa)',
       email: 'isapsiqui377@gmail.com',
       phone: '+258872344382',
       passwordHash: superAdminPasswordHash,
