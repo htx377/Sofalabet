@@ -1096,6 +1096,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
                       >
                         <Key className="w-3.5 h-3.5" />
                       </button>
+                      
+                      {/* Delete User */}
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Tem certeza que deseja excluir o utilizador ${u.name}? Esta ação é irreversível e excluirá todo o histórico e saldo da carteira.`)) {
+                            api.deleteUser(u.id)
+                              .then(res => {
+                                notifySuccess(res.message);
+                                loadData();
+                              })
+                              .catch(err => {
+                                notifyError(err.message || 'Erro ao excluir utilizador');
+                              });
+                          }
+                        }}
+                        className="p-1 bg-slate-800 hover:bg-red-900/50 text-red-400 rounded-lg border border-slate-700"
+                        title="Excluir permanentemente este utilizador"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}

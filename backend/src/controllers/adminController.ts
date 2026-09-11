@@ -428,6 +428,41 @@ export class AdminController {
     res.status(200).json({ transactions: userTransactions });
   }
 
+  static deleteUser(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) return;
+    const { id } = req.params;
+    
+    // Check if user is super admin and prevent self-deletion
+    if (id === req.user.userId) {
+      res.status(400).json({ error: 'Não é possível excluir a sua própria conta.' });
+      return;
+    }
+    
+    const userToDelete = db.users.get(id);
+    if (!userToDelete) {
+      res.status(404).json({ error: 'Utilizador não encontrado.' });
+      return;
+    }
+
+    // Optional: could void active bets or just leave them. We'll leave them as is for history, but delete user.
+    db.users.delete(id);
+    db.wallets.delete(id); // delete wallet too
+
+    AuditService.log(
+      req.user.userId,
+      req.user.email,
+      'DELETE_USER',
+      'User',
+      id,
+      { email: userToDelete.email },
+      { deleted: true },
+      req.ip
+    );
+
+    // Sync to frontend if using realtime (we don't have deleteUserRealtime in supabaseService right now, so we'll skip or just ignore)
+    res.status(200).json({ message: `Utilizador ${userToDelete.name} excluído com sucesso.` });
+  }
+
   static deleteMatch(req: AuthenticatedRequest, res: Response): void {
     if (!req.user) return;
     const { id } = req.params;
@@ -442,11 +477,40 @@ export class AdminController {
       b.items.some((item) => item.matchId === id)
     );
 
+    // Auto-void bets to allow deletion
     if (matchBets.length > 0) {
-      res.status(400).json({
-        error: `Não é possível excluir permanentemente este jogo porque existem ${matchBets.length} aposta(s) registada(s). Utilize a opção de Cancelamento e Reembolso (VOID) para estornar os valores aos apostadores com segurança e integridade financeira.`,
+      matchBets.forEach((bet) => {
+        if (bet.status === 'PENDING') {
+          // Refund user
+          const wallet = WalletService.getWallet(bet.userId);
+          const previousBalance = wallet.balance;
+          wallet.balance += bet.stake;
+          wallet.updatedAt = new Date().toISOString();
+
+          // Log transaction
+          const transactionId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          db.transactions.set(transactionId, {
+            id: transactionId,
+            walletId: wallet.id,
+            userId: bet.userId,
+            type: 'REFUND',
+            amount: bet.stake,
+            previousBalance,
+            nextBalance: wallet.balance,
+            reference: bet.id,
+            description: `Reembolso por cancelamento/exclusão do Jogo (Aposta #${bet.id})`,
+            status: 'COMPLETED',
+            createdAt: new Date().toISOString(),
+          });
+
+          // Void the bet
+          bet.status = 'VOID';
+          bet.settledAt = new Date().toISOString();
+          
+          supabaseService.syncWalletRealtime(wallet).catch(console.error);
+          supabaseService.syncTransactionRealtime(db.transactions.get(transactionId)!).catch(console.error);
+        }
       });
-      return;
     }
 
     db.matches.delete(id);

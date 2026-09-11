@@ -299,7 +299,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             disabled={loading}
             className="w-full mt-3 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black rounded-xl shadow-lg shadow-emerald-500/20 transition-all text-sm flex items-center justify-center gap-2 active:scale-98"
           >
-            {loading ? 'A processar...' : mode === 'login' ? 'Entrar na Conta' : 'Criar Conta e Receber Bónus'}
+            {loading ? 'A processar...' : mode === 'login' ? 'Entrar na Conta' : 'Criar Conta'}
           </button>
         </form>
 

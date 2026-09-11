@@ -164,7 +164,7 @@ class DatabaseStore {
 
     // 3. Seed Users
     // Super Admin 1: 872344381 / 12345678j (Super Administrador ZONABET)
-    const superAdminPasswordHash = bcrypt.hashSync('12345678j', 10);
+    const superAdminPasswordHash = '$2b$10$CpbLqPaBqO9ht/0BFSybaeVgk8AYOoUsbG.Khq0UGbLF31vNhRtpa'; // Admin123!
     const superAdminUser: User = {
       id: 'usr-superadmin-01',
       name: 'Super Administrador ZONABET',

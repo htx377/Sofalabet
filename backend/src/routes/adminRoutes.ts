@@ -19,6 +19,7 @@ router.patch('/users/:id/block', AdminController.toggleUserBlock);
 router.patch('/users/:id/role', AdminController.changeUserRole);
 router.post('/users/:id/reset-password', AdminController.resetUserPassword);
 router.post('/users/adjust-balance', AdminController.adjustBalance);
+router.delete('/users/:id', AdminController.deleteUser);
 router.get('/users/:id/bets', AdminController.getUserBets);
 router.get('/users/:id/transactions', AdminController.getUserTransactions);
 router.delete('/matches/:id', AdminController.deleteMatch);

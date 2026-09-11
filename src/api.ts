@@ -128,6 +128,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
     }),
+  deleteUser: (userId: string) =>
+    request<{ message: string }>(`/admin/users/${userId}`, {
+      method: 'DELETE',
+    }),
   getAdminUserBets: (userId: string) =>
     request<{ bets: any[] }>(`/admin/users/${userId}/bets`),
   getAdminUserTransactions: (userId: string) =>
