@@ -80,7 +80,15 @@ export const api = {
       body: JSON.stringify(body),
     }),
   withdraw: (body: { amount: number; method: string; phoneNumber?: string; bankDetails?: string }) =>
-    request<{ message: string; wallet: any; transaction: any }>('/wallet/withdraw', {
+    request<{
+      message: string;
+      wallet: any;
+      transaction: any;
+      fee?: number;
+      feeRate?: number;
+      netAmount?: number;
+      grossAmount?: number;
+    }>('/wallet/withdraw', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

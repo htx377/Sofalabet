@@ -125,7 +125,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             <div>
               <p className="text-xs font-bold text-emerald-300">Registo Rápido ZONABET</p>
               <p className="text-[11px] text-slate-300 mt-0.5">
-                Registe-se com o seu número de celular e receba <strong>1.000,00 MZN</strong> de saldo bónus imediato!
+                Registe-se com o seu número de celular e comece a apostar nas suas equipas favoritas!
               </p>
             </div>
           </div>

@@ -21,6 +21,7 @@ interface WithdrawalPanelProps {
 type WithdrawalMethod = 'EMOLA';
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000];
+const WITHDRAWAL_FEE_RATE = 0.05; // 5% fee on winnings withdrawal
 
 export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
   onSuccess,
@@ -43,6 +44,8 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
   const [successData, setSuccessData] = useState<{
     reference: string;
     amount: number;
+    fee: number;
+    netAmount: number;
     methodLabel: string;
     destination: string;
     newBalance: number;
@@ -50,6 +53,10 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
 
   const availableBalance = user?.balance ?? 0;
   const numericAmount = parseFloat(amount) || 0;
+
+  // Automatic calculation of the 5% fee and net payout
+  const feeAmount = Math.round(numericAmount * WITHDRAWAL_FEE_RATE * 100) / 100;
+  const netAmount = Math.max(0, Math.round((numericAmount - feeAmount) * 100) / 100);
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,10 +93,14 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
       await refreshUserData();
 
       const methodLabel = 'e-Mola (Movitel)';
+      const finalFee = res.fee !== undefined ? res.fee : feeAmount;
+      const finalNet = res.netAmount !== undefined ? res.netAmount : netAmount;
 
       setSuccessData({
         reference: res.transaction?.reference || `LEV-EMOLA-${Date.now().toString().slice(-6)}`,
         amount: numericAmount,
+        fee: finalFee,
+        netAmount: finalNet,
         methodLabel,
         destination: destinationInfo,
         newBalance: updatedBalance,
@@ -158,11 +169,11 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
               Levantamento Solicitado com Sucesso!
             </span>
-            <div className="text-3xl font-black text-white mt-1">
-              -{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MT</span>
+            <div className="text-2xl sm:text-3xl font-black text-white mt-1">
+              +{successData.netAmount.toFixed(2)} <span className="text-sm sm:text-base text-emerald-400 font-bold">MT Líquidos</span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              O montante foi debitado e transferido para a sua carteira e-Mola Movitel.
+              Transferência enviada para a sua carteira e-Mola com taxa de 5% deduzida automaticamente.
             </p>
           </div>
 
@@ -178,6 +189,20 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <div className="flex justify-between">
               <span className="text-slate-400 font-sans">Número de Destino e-Mola:</span>
               <span className="text-white font-sans">{successData.destination}</span>
+            </div>
+            <div className="flex justify-between pt-1 border-t border-slate-800 font-sans">
+              <span className="text-slate-400">Montante Solicitado (Bruto):</span>
+              <span className="text-slate-200 font-bold">{successData.amount.toFixed(2)} MT</span>
+            </div>
+            <div className="flex justify-between font-sans text-amber-400">
+              <span className="flex items-center gap-1">
+                <span>Taxa de Levantamento (5%):</span>
+              </span>
+              <span className="font-bold">-{successData.fee.toFixed(2)} MT</span>
+            </div>
+            <div className="flex justify-between font-sans text-emerald-400 font-black">
+              <span>Valor Líquido Transferido:</span>
+              <span className="font-mono text-sm">+{successData.netAmount.toFixed(2)} MT</span>
             </div>
             <div className="flex justify-between pt-1 border-t border-slate-800 font-sans">
               <span className="text-slate-400 font-bold">Saldo Restante na Conta:</span>
@@ -250,7 +275,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <div className="bg-slate-950/70 border border-orange-500/20 rounded-xl p-3 text-[11px] text-slate-300 flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-orange-400 shrink-0" />
               <span>
-                Transferências automáticas e seguras sem taxas de intermediários. Os fundos chegam em poucos segundos à sua conta Movitel.
+                Transferências automáticas e seguras via e-Mola (*898#). Aplica-se uma taxa de 5% sobre os ganhos levantados, calculada automaticamente pelo sistema.
               </span>
             </div>
           </div>
@@ -340,30 +365,45 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
               <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               <span>
-                O valor será creditado diretamente no saldo da carteira e-Mola associada ao número indicado.
+                O valor líquido será creditado diretamente no saldo da carteira e-Mola associada ao número indicado.
               </span>
             </p>
           </div>
 
           {/* Fee & Calculation Summary */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
-            <div className="flex justify-between text-slate-400">
-              <span>Montante a Levantar:</span>
-              <span className="font-bold text-white">{numericAmount.toFixed(2)} MT</span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Taxa de Levantamento e-Mola:</span>
-              <span className="font-bold text-emerald-400">0,00 MT (Grátis)</span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Saldo Restante:</span>
-              <span className="font-bold text-slate-300">
-                {Math.max(0, availableBalance - numericAmount).toFixed(2)} MT
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-300">Cálculo Automático do Levantamento</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                Taxa de 5% Aplicada
               </span>
             </div>
-            <div className="flex justify-between text-sm font-black pt-1.5 border-t border-slate-800">
-              <span className="text-white">Total a Receber no e-Mola:</span>
-              <span className="text-orange-400 font-mono">+{numericAmount.toFixed(2)} MT</span>
+
+            <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+              <div className="flex justify-between text-slate-400">
+                <span>Montante Solicitado (Débito da conta):</span>
+                <span className="font-bold text-white">{numericAmount.toFixed(2)} MT</span>
+              </div>
+              <div className="flex justify-between text-amber-400">
+                <span>Taxa de Levantamento (5% automática):</span>
+                <span className="font-bold font-mono">-{feeAmount.toFixed(2)} MT</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Saldo Restante na ZONABET:</span>
+                <span className="font-bold text-slate-300">
+                  {Math.max(0, availableBalance - numericAmount).toFixed(2)} MT
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-sm font-black pt-2 border-t border-slate-800 bg-slate-950/60 p-2.5 rounded-lg">
+              <div className="flex flex-col">
+                <span className="text-white">Valor Líquido a Receber no e-Mola:</span>
+                <span className="text-[10px] text-slate-400 font-normal">Creditado diretamente no número indicado</span>
+              </div>
+              <span className="text-base font-extrabold text-orange-400 font-mono">
+                +{netAmount.toFixed(2)} MT
+              </span>
             </div>
           </div>
 
@@ -382,7 +422,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             ) : (
               <>
                 <ArrowUpRight className="w-4 h-4" />
-                <span>Confirmar Levantamento via e-Mola de {numericAmount.toFixed(2)} MT</span>
+                <span>Confirmar Levantamento (Recebe {netAmount.toFixed(2)} MT no e-Mola)</span>
               </>
             )}
           </button>

@@ -65,31 +65,14 @@ export class AuthController {
 
     db.users.set(userId, newUser);
 
-    // Initialize user wallet with 1,000 MZN virtual test balance
+    // Initialize user wallet with 0.00 MZN
     const wallet = WalletService.getWallet(userId);
-    wallet.balance = 1000.00;
+    wallet.balance = 0.00;
     wallet.updatedAt = new Date().toISOString();
-
-    // Create deposit transaction in ledger
-    const bonusTx = {
-      id: `tx-${Date.now()}-reg`,
-      walletId: wallet.id,
-      userId,
-      type: 'DEPOSIT' as const,
-      amount: 1000.00,
-      previousBalance: 0.00,
-      nextBalance: 1000.00,
-      reference: 'BÓNUS-BOAS-VINDAS',
-      description: 'Depósito inicial de boas-vindas da conta em MZN',
-      status: 'COMPLETED' as const,
-      createdAt: new Date().toISOString(),
-    };
-    db.transactions.push(bonusTx);
 
     // Real-time synchronization with Supabase
     supabaseService.syncUserRealtime(newUser).catch(console.error);
     supabaseService.syncWalletRealtime(wallet).catch(console.error);
-    supabaseService.syncTransactionRealtime(bonusTx).catch(console.error);
 
     const tokenPayload: AuthTokenPayload = {
       userId: newUser.id,

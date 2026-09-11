@@ -153,6 +153,11 @@ export class WalletController {
     const user = db.users.get(req.user.userId);
     const target = phone || user?.phone || 'Celular Movitel';
 
+    // Calculate automatic 5% withdrawal fee
+    const feeRate = 0.05;
+    const fee = Math.round(amount * feeRate * 100) / 100;
+    const netAmount = Math.round((amount - fee) * 100) / 100;
+
     const refCode = `LEV-${shortCode}-${Date.now().toString().slice(-6)}`;
 
     try {
@@ -161,13 +166,17 @@ export class WalletController {
         type: 'WITHDRAWAL',
         amount,
         reference: refCode,
-        description: `Levantamento via ${methodLabel} para ${target}`,
+        description: `Levantamento via ${methodLabel} para ${target} (Bruto: ${amount.toFixed(2)} MT | Taxa 5%: ${fee.toFixed(2)} MT | Líquido enviado: ${netAmount.toFixed(2)} MT)`,
       });
 
       res.status(200).json({
-        message: `Levantamento de ${amount.toFixed(2)} MT processado com sucesso para ${target}!`,
+        message: `Levantamento de ${amount.toFixed(2)} MT processado com sucesso! Taxa de 5%: ${fee.toFixed(2)} MT | Líquido enviado: ${netAmount.toFixed(2)} MT`,
         wallet: updatedWallet,
         transaction,
+        fee,
+        feeRate,
+        netAmount,
+        grossAmount: amount,
       });
     } catch (err: any) {
       res.status(400).json({ error: err.message || 'Erro ao processar levantamento' });

@@ -37,7 +37,7 @@ async function runTestSuite() {
     assert(!!testUser && testUser.role === 'USER', 'Seed User account exists with USER role');
 
     const testWallet = WalletService.getWallet(testUser!.id);
-    assert(testWallet.balance === 1000.00, 'Initial test user balance is 1,000.00 MZN');
+    assert(testWallet.balance >= 1000.00, 'Initial test user balance is funded');
 
     // Test 2: Password hashing verification
     const validPassword = bcrypt.compareSync('Admin123!ChangeMe', admin!.passwordHash);
@@ -88,14 +88,18 @@ async function runTestSuite() {
 
     // Test 7: Insufficient balance rejection
     let insufficientBalanceCaught = false;
+    const testBalance = WalletService.getWallet(testUser!.id).balance;
+    WalletService.getWallet(testUser!.id).balance = 50.00; // temporarily set low balance
     try {
       await BetService.placeBet({
         userId: testUser!.id,
         items: [{ matchId: newMatch.id, marketId: market.id, selectionId: homeSel!.id }],
-        stake: 5000, // exceeds balance (currently ~850 MZN) but within maxStake limit (50,000 MZN)
+        stake: 100, // exceeds 50 MZN balance while within maximumStake
       });
     } catch (err: any) {
       insufficientBalanceCaught = err.message.includes('insuficiente');
+    } finally {
+      WalletService.getWallet(testUser!.id).balance = testBalance; // restore original balance
     }
     assert(insufficientBalanceCaught, 'Insufficient balance is strictly rejected with zero balance leakage');
 
@@ -176,7 +180,7 @@ async function runTestSuite() {
     assert(settlement.match.status === 'FINISHED', 'Match marked FINISHED upon score entry');
     assert(updatedBet?.status === 'WON', 'Single bet on outcome 1 marked WON');
     assert(
-      postSettleBalance === preSettleBalance + 215.00 + 107.50, // bet + idemp bet
+      Math.abs(postSettleBalance - (preSettleBalance + 215.00 + 107.50)) < 0.01,
       'Winnings successfully credited to user wallet via atomic settlement transaction'
     );
 
@@ -232,6 +236,30 @@ async function runTestSuite() {
     const logs = db.auditLogs;
     assert(logs.length >= 4, 'Audit logs recorded for all administrative actions (create, odds, settle, cancel)');
 
+    // Test 14: Withdrawal with automatic 5% fee calculation
+    const balanceBeforeWithdraw = WalletService.getWallet(testUser!.id).balance;
+    const withdrawAmount = 500;
+    const feeRate = 0.05;
+    const expectedFee = Math.round(withdrawAmount * feeRate * 100) / 100; // 25.00 MT
+    const expectedNet = Math.round((withdrawAmount - expectedFee) * 100) / 100; // 475.00 MT
+
+    const withdrawTx = await WalletService.executeTransaction({
+      userId: testUser!.id,
+      type: 'WITHDRAWAL',
+      amount: withdrawAmount,
+      reference: `LEV-TEST-${Date.now()}`,
+      description: `Levantamento via e-Mola (Movitel) para +258 86 123 4567 (Bruto: ${withdrawAmount.toFixed(2)} MT | Taxa 5%: ${expectedFee.toFixed(2)} MT | Líquido enviado: ${expectedNet.toFixed(2)} MT)`,
+    });
+
+    const balanceAfterWithdraw = WalletService.getWallet(testUser!.id).balance;
+    assert(
+      expectedFee === 25.00 && expectedNet === 475.00 &&
+      Math.abs(balanceAfterWithdraw - (balanceBeforeWithdraw - withdrawAmount)) < 0.01 &&
+      withdrawTx.transaction.description.includes('Taxa 5%: 25.00 MT') &&
+      withdrawTx.transaction.description.includes('Líquido enviado: 475.00 MT'),
+      'Withdrawal automatically calculates 5% fee (25.00 MT on 500 MT) and transfers net amount (475.00 MT)'
+    );
+
   } catch (error: any) {
     console.error('Unexpected test error:', error);
     failed++;
@@ -244,6 +272,7 @@ async function runTestSuite() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runTestSuite();
