@@ -148,121 +148,94 @@ export const MatchList: React.FC = () => {
   return (
     <div className="space-y-3">
       {/* 1. Header: Futebol Moçambicano */}
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
-            <span>Futebol Moçambicano</span>
-          </h1>
-          {isLiveConnected && (
-            <span
-              title="Ligação em tempo real com o Supabase ativa"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 animate-pulse"
-            >
-              <Radio className="w-3 h-3 text-emerald-400" />
-              <span>Ao Vivo</span>
-            </span>
-          )}
+      <div className="flex items-center gap-3 px-1">
+        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0">
+          ⚽
         </div>
+        <h1 className="text-xl font-extrabold text-white flex-1 flex items-center gap-2">
+          Futebol Moçambicano <span>🇲🇿</span>
+        </h1>
         <button
           onClick={() => fetchMatches(false)}
           disabled={loading}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700/80 transition-colors"
-          title="Atualizar Odds"
+          className="p-1 rounded-lg text-slate-500 hover:text-white"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
-          <span className="hidden sm:inline">Atualizar</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
       </div>
 
       {/* 2. Category Navigation Tabs: Todos | Moçambola | Provinciais | Distritais */}
-      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-1.5 sm:p-2.5 shadow-sm w-full">
-        <div className="grid grid-cols-4 gap-1 sm:gap-2 w-full">
-          <button
-            onClick={() => handleTierChange('ALL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
-              selectedTier === 'ALL'
-                ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="truncate">Todos</span>
-          </button>
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none w-full pb-1">
+        <button
+          onClick={() => handleTierChange('ALL')}
+          className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all ${
+            selectedTier === 'ALL'
+              ? 'bg-emerald-400 text-slate-950'
+              : 'bg-transparent border border-slate-700 text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          Todos
+        </button>
+        <button
+          onClick={() => handleTierChange('MOCAMBOLA')}
+          className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all ${
+            selectedTier === 'MOCAMBOLA'
+              ? 'bg-emerald-400 text-slate-950'
+              : 'bg-[#101827] border border-slate-700 text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          Moçambola
+        </button>
+        <button
+          onClick={() => handleTierChange('PROVINCIAL')}
+          className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all ${
+            selectedTier === 'PROVINCIAL'
+              ? 'bg-emerald-400 text-slate-950'
+              : 'bg-transparent border border-slate-700 text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          Provinciais
+        </button>
+        <button
+          onClick={() => handleTierChange('DISTRITAL')}
+          className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all ${
+            selectedTier === 'DISTRITAL'
+              ? 'bg-emerald-400 text-slate-950'
+              : 'bg-transparent border border-slate-700 text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          Distritais
+        </button>
+      </div>
 
-          <button
-            onClick={() => handleTierChange('MOCAMBOLA')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
-              selectedTier === 'MOCAMBOLA'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <span className="shrink-0 text-xs">🇲🇿</span>
-            <span className="truncate">Moçambola</span>
-          </button>
-
-          <button
-            onClick={() => handleTierChange('PROVINCIAL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
-              selectedTier === 'PROVINCIAL'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5 text-amber-950 shrink-0" />
-            <span className="truncate">Provinciais</span>
-          </button>
-
-          <button
-            onClick={() => handleTierChange('DISTRITAL')}
-            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2 py-2 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black min-h-[42px] sm:min-h-[44px] transition-all ${
-              selectedTier === 'DISTRITAL'
-                ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5 text-sky-950 shrink-0" />
-            <span className="truncate">Distritais</span>
-          </button>
-        </div>
-
-        {/* Specific Competition Pills Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 mt-2 border-t border-slate-800/60 scrollbar-none w-full max-w-full">
+      {/* Specific Competition Pills Filter (e.g. Maputo, Beira, Nampula) */}
+      {selectedTier !== 'ALL' && visibleCompetitions.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none w-full py-1">
           <button
             onClick={() => setSelectedCompetition('all')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               selectedCompetition === 'all'
-                ? 'bg-slate-700 text-white font-black'
-                : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-300'
+                ? 'bg-slate-700 text-white'
+                : 'bg-transparent border border-slate-800 text-slate-400 hover:bg-slate-800/80'
             }`}
           >
-            {selectedTier === 'ALL'
-              ? 'Todos os Campeonatos'
-              : selectedTier === 'MOCAMBOLA'
-              ? 'Todos Moçambola'
-              : selectedTier === 'PROVINCIAL'
-              ? 'Todas as Províncias'
-              : 'Todos os Distritos'}
+            Todas de ${selectedTier === 'MOCAMBOLA' ? 'Moçambola' : selectedTier === 'PROVINCIAL' ? 'Provinciais' : 'Distritais'}
           </button>
-
           {visibleCompetitions.map((comp) => (
             <button
               key={comp.id}
               onClick={() => setSelectedCompetition(comp.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 selectedCompetition === comp.id
-                  ? 'bg-slate-700 text-white font-bold border border-slate-600'
-                  : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-300'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-transparent border border-slate-800 text-slate-400 hover:bg-slate-800/80'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                comp.category === 'MOCAMBOLA' ? 'bg-emerald-400' : comp.category === 'PROVINCIAL' ? 'bg-amber-400' : 'bg-sky-400'
-              }`}></span>
-              <span>{comp.name}</span>
+              {comp.name.replace('Campeonato Provincial de ', '').replace('Campeonato Distrital d', 'Distrito d')}
             </button>
           ))}
         </div>
-      </div>
+      )}
 
       {/* 3. Section Title: Jogos de Hoje */}
       <div className="flex items-center justify-between pt-1 px-0.5">
@@ -312,7 +285,7 @@ export const MatchList: React.FC = () => {
           const isFinished = match.status === 'FINISHED';
           const isJustUpdated = pulsingMatchId === match.id;
 
-          return (
+                    return (
             <div
               key={match.id}
               className={`w-full max-w-full overflow-hidden bg-slate-900 border rounded-2xl p-3 sm:p-3.5 transition-all duration-500 shadow-sm ${
@@ -514,7 +487,6 @@ export const MatchList: React.FC = () => {
                     </button>
                   )}
                 </div>
-
               </div>
             </div>
           );

@@ -18,7 +18,7 @@ function MainLayout() {
   const { user, refreshUserData } = useAuth();
   const { items, setIsOpenMobile } = useBetSlip();
   const [currentView, setCurrentView] = useState<'sportsbook' | 'account' | 'admin'>('sportsbook');
-  const [accountTab, setAccountTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions'>('bets');
+  const [accountTab, setAccountTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions' | 'referrals'>('bets');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [walletModalOpen, setWalletModalOpen] = useState(false);
@@ -103,6 +103,20 @@ function MainLayout() {
       ) {
         triggerSecretAdmin();
       }
+
+      // Check referral code parameter in URL (?ref=... or ?codigo=...)
+      const refParam = params.get('ref') || params.get('codigo') || params.get('código');
+      if (refParam) {
+        try {
+          localStorage.setItem('zonabet_ref', refParam);
+        } catch (e) {
+          // ignore localStorage error
+        }
+        if (!user) {
+          setAuthModalMode('register');
+          setAuthModalOpen(true);
+        }
+      }
     };
 
     checkUrlTriggers();
@@ -130,6 +144,15 @@ function MainLayout() {
       return;
     }
     setAccountTab('bets');
+    setCurrentView('account');
+  };
+
+  const openReferrals = () => {
+    if (!user) {
+      openAuth('register');
+      return;
+    }
+    setAccountTab('referrals');
     setCurrentView('account');
   };
 
@@ -197,6 +220,7 @@ function MainLayout() {
         onOpenDeposit={() => openWalletAction('deposit')}
         onOpenWithdraw={() => openWalletAction('withdraw')}
         onOpenBets={openUserBets}
+        onOpenReferrals={openReferrals}
         onTriggerSecretAdmin={triggerSecretAdmin}
       />
 

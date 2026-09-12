@@ -17,6 +17,7 @@ import {
   Database,
   Phone,
   Radio,
+  Gift,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,6 +27,7 @@ interface HeaderProps {
   onOpenDeposit?: () => void;
   onOpenWithdraw?: () => void;
   onOpenBets?: () => void;
+  onOpenReferrals?: () => void;
   onTriggerSecretAdmin?: () => void;
 }
 
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDeposit,
   onOpenWithdraw,
   onOpenBets,
+  onOpenReferrals,
   onTriggerSecretAdmin,
 }) => {
   const { user, logout } = useAuth();
@@ -73,8 +76,18 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white">
+            <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-2">
+          
+          {/* Mobile Menu Toggle */}
+          <div className="flex items-center gap-1 md:hidden shrink-0">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1 sm:p-2 -ml-1 sm:-ml-2 text-slate-300 hover:text-white rounded-xl active:bg-slate-800"
+            >
+              <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          </div>
           
           {/* Brand Logo - Secret 5-Click Trigger */}
           <div
@@ -110,124 +123,110 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Desktop Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-1.5">
+          <nav className="hidden md:flex items-center gap-1 lg:gap-2 px-2 lg:px-6 flex-1 justify-center">
             <button
-              id="nav-sportsbook-btn"
               onClick={() => handleNav('sportsbook')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                currentView === 'sportsbook'
-                  ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                currentView === 'sportsbook' ? 'bg-slate-800/80 text-emerald-400 shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
               }`}
             >
-              Jogos & Odds
+              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Moçambola & Nacional</span>
             </button>
-
-            {user && (
-              <>
-                <button
-                  id="nav-my-bets-btn"
-                  onClick={() => {
-                    if (onOpenBets) {
-                      onOpenBets();
-                    } else {
-                      handleNav('account');
-                    }
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all border border-transparent hover:border-slate-700"
-                  title="Consultar meu histórico de apostas"
-                >
-                  <History className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Minhas Apostas</span>
-                </button>
-
-                <button
-                  id="nav-account-btn"
-                  onClick={() => handleNav('account')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                    currentView === 'account'
-                      ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  Minha Conta
-                </button>
-              </>
-            )}
-
-            {/* Admin navigation button */}
+            <button
+              onClick={() => {
+                if (user) {
+                  onOpenBets && onOpenBets();
+                } else {
+                  openAuthModal('login');
+                }
+              }}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all flex items-center gap-2"
+            >
+              <History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Minhas Apostas</span>
+            </button>
+            <button
+              id="header-referral-btn"
+              onClick={() => {
+                if (user) {
+                  onOpenReferrals ? onOpenReferrals() : handleNav('account');
+                } else {
+                  openAuthModal('register');
+                }
+              }}
+              className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition-all flex items-center gap-1.5"
+            >
+              <Gift className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+              <span>Bónus 5%</span>
+            </button>
             {user?.role === 'ADMIN' && (
               <button
-                id="nav-admin-panel-btn"
-                onClick={() => handleNav(currentView === 'admin' ? 'sportsbook' : 'admin')}
-                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 transition-all shadow-sm ${
-                  currentView === 'admin'
-                    ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
-                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+                onClick={() => handleNav('admin')}
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                  currentView === 'admin' ? 'bg-slate-800/80 text-amber-400 shadow-sm' : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50'
                 }`}
-                title="Aceder ao Painel Administrativo"
               >
-                <Shield className="w-3.5 h-3.5 text-amber-400" />
-                <span>{currentView === 'admin' ? 'Voltar às Apostas' : 'Painel Admin'}</span>
+                <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>Admin</span>
               </button>
             )}
           </nav>
 
           {/* Right Header Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-2">
             {user ? (
               <>
-                {/* Live Balance & Quick Deposit */}
-                <div className="flex items-center gap-1 sm:gap-1.5">
-                  <button
-                    id="user-balance-badge"
-                    onClick={() => handleNav('account')}
-                    title="Aceder à Carteira"
-                    className="flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-800 hover:border-emerald-500/40 border border-slate-700 rounded-xl px-2 sm:px-3 py-1.5 transition-all text-left"
-                  >
-                    <WalletIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="font-black text-xs sm:text-sm text-emerald-400 whitespace-nowrap">
-                      {user.balance.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      <span className="text-[9px] sm:text-[10px] text-slate-400 ml-1 font-normal">MZN</span>
-                    </span>
-                  </button>
-
+                {/* Desktop view: Live Balance & Quick Deposit */}
+                <div className="hidden sm:flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex flex-col items-end pr-2 border-r border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 font-medium leading-none">Saldo Disponível</span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="font-black text-sm text-emerald-400">
+                        {user.balance.toLocaleString('pt-MZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-[10px] text-emerald-400/80">MZN</span>
+                    </div>
+                  </div>
                   {onOpenDeposit && (
                     <button
                       id="header-deposit-btn"
                       onClick={onOpenDeposit}
                       title="Painel de Depósito"
-                      className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition-all flex items-center gap-1 shadow-sm shadow-emerald-500/20 active:scale-95"
+                      className="p-2 sm:px-3 sm:py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-1"
                     >
-                      <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span className="hidden sm:inline">Depositar</span>
-                    </button>
-                  )}
-
-                  {onOpenWithdraw && (
-                    <button
-                      id="header-withdraw-btn"
-                      onClick={onOpenWithdraw}
-                      title="Painel de Levantamento"
-                      className="hidden sm:flex px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-amber-500/40 text-amber-300 text-xs font-black transition-all items-center gap-1 active:scale-95"
-                    >
-                      <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="hidden sm:inline">Levantar</span>
+                      <ArrowDownLeft className="w-4 h-4" />
+                      <span className="hidden lg:inline text-sm">Depositar</span>
                     </button>
                   )}
                 </div>
 
-                {/* Profile quick button (desktop) */}
+                {/* Mobile view: Minimalist balance badge */}
+                <button
+                  id="user-balance-badge"
+                  onClick={() => handleNav('account')}
+                  title="Aceder à Carteira"
+                  className="sm:hidden flex items-center gap-1.5 bg-slate-800/80 border border-emerald-500/20 rounded-lg px-2.5 py-1.5"
+                >
+                  <WalletIcon className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="font-bold text-xs text-emerald-400 whitespace-nowrap">
+                    {user.balance.toFixed(0)} <span className="text-[9px] text-emerald-400/80 font-normal">MT</span>
+                  </span>
+                </button>
+
+                {/* Profile quick button */}
                 <button
                   id="user-profile-btn"
                   onClick={() => handleNav('account')}
                   title="Minha Conta"
-                  className="hidden sm:flex items-center gap-1.5 p-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs font-bold text-slate-200 transition-colors"
+                  className="flex items-center gap-2 pl-1 pr-3 py-1 sm:pl-1.5 sm:pr-4 sm:py-1.5 rounded-full border border-slate-700/80 bg-slate-800/40 hover:bg-slate-800 transition-colors"
                 >
-                  <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
-                    <User className="w-3 h-3" />
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                    <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
                   </div>
-                  <span className="max-w-[70px] md:max-w-[90px] truncate">{user.name.split(' ')[0]}</span>
+                  <span className="font-bold text-xs sm:text-sm text-slate-200 hidden md:inline truncate max-w-[100px]">
+                    {user.name.split(' ')[0]}
+                  </span>
                 </button>
               </>
             ) : (
@@ -248,31 +247,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </div>
             )}
-
-            {/* Mobile BetSlip Toggle Button */}
-            <button
-              id="mobile-betslip-header-btn"
-              onClick={() => setIsOpenMobile(true)}
-              className="lg:hidden relative p-1.5 sm:p-2 text-slate-300 hover:text-emerald-400 bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-center"
-              title="Abrir Boletim"
-            >
-              <Ticket className="w-4 h-4 sm:w-5 sm:h-5" />
-              {items.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-emerald-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center shadow">
-                  {items.length}
-                </span>
-              )}
-            </button>
-
-            {/* Mobile Hamburger Menu Button */}
-            <button
-              id="mobile-hamburger-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-1.5 sm:p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 rounded-xl border border-slate-700 transition-colors"
-              aria-label="Abrir Menu"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
         </div>
       </header>
@@ -426,6 +400,22 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <User className="w-4 h-4 text-emerald-400" />
                       <span>Minha Carteira & Conta</span>
+                    </button>
+
+                    <button
+                      id="mobile-drawer-referrals-btn"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        if (onOpenReferrals) {
+                          onOpenReferrals();
+                        } else {
+                          handleNav('account');
+                        }
+                      }}
+                      className="w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                    >
+                      <Gift className="w-4 h-4 text-amber-400" />
+                      <span>Convide Amigos (Bónus 5%)</span>
                     </button>
                   </>
                 )}

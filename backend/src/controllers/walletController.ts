@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.ts';
 import { db } from '../db/store.ts';
 import { WalletService } from '../services/walletService.ts';
+import { ReferralService } from '../services/referralService.ts';
 import { config } from '../config/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 
@@ -108,6 +109,11 @@ export class WalletController {
       // Real-time synchronization with Supabase
       supabaseService.syncDepositProofRealtime(depositProof).catch(console.error);
 
+      // Trigger 5% referral bonus if this user was invited by someone
+      ReferralService.processDepositBonus(req.user.userId, amount).catch((err) => {
+        console.error('[ReferralBonus] Erro ao creditar bónus de 5%:', err);
+      });
+
       res.status(200).json({
         message: `Depósito de ${amount.toFixed(2)} MZN via ${methodLabel} confirmado com sucesso!`,
         wallet,
@@ -205,6 +211,11 @@ export class WalletController {
         amount,
         reference: `TOPUP-${Date.now()}`,
         description: `Recarga de saldo (${method})`,
+      });
+
+      // Trigger 5% referral bonus if this user was invited by someone
+      ReferralService.processDepositBonus(req.user.userId, amount).catch((err) => {
+        console.error('[ReferralBonus] Erro ao creditar bónus de 5% no topup:', err);
       });
 
       res.status(200).json({

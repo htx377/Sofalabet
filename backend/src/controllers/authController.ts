@@ -9,6 +9,7 @@ import { AuditService } from '../services/auditService.ts';
 import { AuthenticatedRequest } from '../middleware/auth.ts';
 import { User, AuthTokenPayload } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
+import { ReferralService } from '../services/referralService.ts';
 
 export class AuthController {
   static register(req: Request, res: Response): void {
@@ -18,7 +19,7 @@ export class AuthController {
       return;
     }
 
-    const { name, phone, password } = parseResult.data;
+    const { name, phone, password, referralCode } = parseResult.data;
     let { email } = parseResult.data;
 
     // Check if cell phone number already exists
@@ -51,6 +52,30 @@ export class AuthController {
     const isAdminPhone = cleanDigits.includes('872344381') || cleanDigits.includes('872344380');
     const assignedRole = (isAdminEmail || isAdminPhone) ? 'ADMIN' : 'USER';
 
+    // Process referral code if provided
+    let referredBy: string | undefined = undefined;
+    if (referralCode && referralCode.trim() !== '') {
+      const inviter = db.getUserByReferralCode(referralCode);
+      if (inviter) {
+        referredBy = inviter.id;
+      }
+    }
+
+    // Generate guaranteed unique individual referral code and individual link
+    const cleanDigitsOnly = cleanDigits.slice(-9);
+    let generatedReferralCode = cleanDigitsOnly.length >= 4 ? `ZONA${cleanDigitsOnly}` : `ZONA${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    if (db.getUserByReferralCode(generatedReferralCode)) {
+      let uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      generatedReferralCode = `${generatedReferralCode}-${uniqueSuffix}`;
+      while (db.getUserByReferralCode(generatedReferralCode)) {
+        generatedReferralCode = `ZONA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      }
+    }
+
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const individualReferralLink = `${protocol}://${host}/?ref=${generatedReferralCode}`;
+
     const newUser: User = {
       id: userId,
       name: name.trim(),
@@ -59,11 +84,32 @@ export class AuthController {
       passwordHash,
       role: assignedRole,
       isBlocked: false,
+      referralCode: generatedReferralCode,
+      referralLink: individualReferralLink,
+      referredBy,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     db.users.set(userId, newUser);
+
+    // Record the referral relationship
+    if (referredBy) {
+      const inviter = db.users.get(referredBy);
+      if (inviter) {
+        db.addReferral({
+          id: `ref-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          inviterId: inviter.id,
+          inviterName: inviter.name,
+          invitedUserId: newUser.id,
+          invitedUserName: newUser.name,
+          invitedUserPhone: newUser.phone,
+          totalBonusEarned: 0,
+          depositsCount: 0,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
 
     // Initialize user wallet with 0.00 MZN
     const wallet = WalletService.getWallet(userId);
@@ -93,6 +139,9 @@ export class AuthController {
         phone: newUser.phone,
         role: newUser.role,
         balance: wallet.balance,
+        referralCode: newUser.referralCode,
+        referralLink: newUser.referralLink || `${(req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http'}://${req.get('host') || 'localhost:3000'}/?ref=${newUser.referralCode}`,
+        referredBy: newUser.referredBy,
       },
     });
   }
@@ -149,6 +198,10 @@ export class AuthController {
       );
     }
 
+    const host = req.get('host') || 'localhost:3000';
+    const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const computedReferralLink = user.referralLink || `${proto}://${host}/?ref=${user.referralCode || `ZONA${user.phone.replace(/\D/g, '').slice(-9)}`}`;
+
     res.status(200).json({
       message: 'Sessão iniciada com sucesso.',
       token,
@@ -159,6 +212,9 @@ export class AuthController {
         phone: user.phone,
         role: user.role,
         balance: wallet.balance,
+        referralCode: user.referralCode,
+        referralLink: computedReferralLink,
+        referredBy: user.referredBy,
       },
     });
   }
@@ -176,6 +232,9 @@ export class AuthController {
     }
 
     const wallet = WalletService.getWallet(user.id);
+    const host = req.get('host') || 'localhost:3000';
+    const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const computedReferralLink = user.referralLink || `${proto}://${host}/?ref=${user.referralCode || `ZONA${user.phone.replace(/\D/g, '').slice(-9)}`}`;
 
     res.status(200).json({
       user: {
@@ -186,8 +245,25 @@ export class AuthController {
         role: user.role,
         balance: wallet.balance,
         isBlocked: user.isBlocked,
+        referralCode: user.referralCode,
+        referralLink: computedReferralLink,
+        referredBy: user.referredBy,
       },
     });
+  }
+
+  static getReferrals(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    try {
+      const data = ReferralService.getReferralInfo(req.user.userId);
+      res.status(200).json(data);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erro ao carregar dados de convites' });
+    }
   }
 
   static logout(req: Request, res: Response): void {

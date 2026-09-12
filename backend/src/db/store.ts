@@ -10,6 +10,7 @@ import {
   AuditLog,
   DepositProof,
   DepositProofStatus,
+  Referral,
 } from '../types/index.ts';
 
 export interface IdempotencyRecord {
@@ -30,6 +31,7 @@ class DatabaseStore {
   public auditLogs: AuditLog[] = [];
   public idempotencyRecords: Map<string, IdempotencyRecord> = new Map();
   public depositProofs: DepositProof[] = [];
+  public referrals: Referral[] = [];
 
   private initialized = false;
 
@@ -173,6 +175,7 @@ class DatabaseStore {
       passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
       isBlocked: false,
+      referralCode: 'ZONA872344381',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -197,6 +200,7 @@ class DatabaseStore {
       passwordHash: admin2PasswordHash,
       role: 'ADMIN',
       isBlocked: false,
+      referralCode: 'ZONA872344380',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -219,6 +223,7 @@ class DatabaseStore {
       passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
       isBlocked: false,
+      referralCode: 'ZONA872344382',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -241,6 +246,7 @@ class DatabaseStore {
       passwordHash: userPasswordHash,
       role: 'USER',
       isBlocked: false,
+      referralCode: 'ZONA841234567',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -644,6 +650,50 @@ class DatabaseStore {
     if (reviewNotes !== undefined) proof.reviewNotes = reviewNotes;
     proof.updatedAt = new Date().toISOString();
     return proof;
+  }
+
+  public getUserByReferralCode(rawCode: string): User | undefined {
+    if (!rawCode) return undefined;
+    const clean = rawCode.trim().toUpperCase().replace(/\s+/g, '');
+    const cleanDigits = rawCode.replace(/\D/g, '');
+
+    for (const user of this.users.values()) {
+      if (user.referralCode && user.referralCode.toUpperCase() === clean) {
+        return user;
+      }
+      if (user.phone) {
+        const userDigits = user.phone.replace(/\D/g, '');
+        if (cleanDigits && (userDigits === cleanDigits || (cleanDigits.length >= 8 && userDigits.endsWith(cleanDigits.slice(-9))))) {
+          return user;
+        }
+      }
+      if (user.id === rawCode.trim()) {
+        return user;
+      }
+    }
+    return undefined;
+  }
+
+  public getReferralsByInviter(inviterId: string): Referral[] {
+    return this.referrals.filter((r) => r.inviterId === inviterId);
+  }
+
+  public getReferralByInvitedUser(invitedUserId: string): Referral | undefined {
+    return this.referrals.find((r) => r.invitedUserId === invitedUserId);
+  }
+
+  public addReferral(referral: Referral): Referral {
+    this.referrals.unshift(referral);
+    return referral;
+  }
+
+  public updateReferralBonus(invitedUserId: string, bonusAmount: number): void {
+    const referral = this.referrals.find((r) => r.invitedUserId === invitedUserId);
+    if (referral) {
+      referral.totalBonusEarned = Math.round((referral.totalBonusEarned + bonusAmount) * 100) / 100;
+      referral.depositsCount += 1;
+      referral.lastBonusAt = new Date().toISOString();
+    }
   }
 }
 

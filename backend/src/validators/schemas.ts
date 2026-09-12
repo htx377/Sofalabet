@@ -7,6 +7,7 @@ export const registerSchema = z.object({
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   password: z.string().min(6, 'A palavra-passe deve ter pelo menos 6 caracteres'),
   confirmPassword: z.string().min(6, 'Confirmação da palavra-passe necessária'),
+  referralCode: z.string().optional().or(z.literal('')),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'As palavras-passe não coincidem',
   path: ['confirmPassword'],

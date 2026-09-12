@@ -14,6 +14,8 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  Copy,
+  Gift,
 } from 'lucide-react';
 
 interface UserDetailModalProps {
@@ -215,6 +217,39 @@ export const UserDetailModal: React.FC<UserDetailModalProps> = ({
               <span>Redefinir Senha</span>
             </button>
           </div>
+        </div>
+
+        {/* User's Individual Referral Link */}
+        <div className="mx-5 mb-4 p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/60 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <Gift className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Link de Registo Individual (5% Bónus)</span>
+                <span className="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
+                  {user.referralCode || `ZONA${user.phone?.replace(/\D/g, '').slice(-9)}`}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-mono truncate max-w-md">
+                {user.referralLink || `${typeof window !== 'undefined' ? window.location.origin : ''}/?ref=${user.referralCode || `ZONA${user.phone?.replace(/\D/g, '').slice(-9)}`}`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const origin = typeof window !== 'undefined' ? window.location.origin : '';
+              const link = user.referralLink || `${origin}/?ref=${user.referralCode || `ZONA${user.phone?.replace(/\D/g, '').slice(-9)}`}`;
+              navigator.clipboard.writeText(link);
+              notifySuccess('Link individual de registo do jogador copiado com sucesso!');
+            }}
+            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Copiar Link Individual</span>
+          </button>
         </div>
 
         {/* Reset Password Form dropdown */}

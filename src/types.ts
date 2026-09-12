@@ -8,6 +8,33 @@ export interface User {
   role: UserRole;
   balance: number;
   isBlocked?: boolean;
+  referralCode?: string;
+  referralLink?: string;
+  referredBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Referral {
+  id: string;
+  inviterId: string;
+  inviterName: string;
+  invitedUserId: string;
+  invitedUserName: string;
+  invitedUserPhone: string;
+  totalBonusEarned: number;
+  depositsCount: number;
+  createdAt: string;
+  lastBonusAt?: string;
+}
+
+export interface ReferralInfo {
+  referralCode: string;
+  referralLink: string;
+  bonusPercentage: number;
+  totalInvited: number;
+  totalBonusEarned: number;
+  invitedUsers: Referral[];
 }
 
 export interface Selection {
@@ -149,6 +176,17 @@ export interface AuditLog {
   timestamp: string;
 }
 
+export interface DailyReportItem {
+  date: string;
+  wagered: number;
+  paidOut: number;
+  profit: number;
+  betsCount: number;
+  deposits: number;
+  withdrawals: number;
+  newUsers: number;
+}
+
 export interface DashboardStats {
   totalUsers: number;
   activeMatches: number;
@@ -156,8 +194,25 @@ export interface DashboardStats {
   pendingBets: number;
   wonBets: number;
   lostBets: number;
+  voidBets?: number;
   totalBetVolume: number;
   totalDisbursedPayout: number;
   totalBalanceMoved: number;
   totalTransactions: number;
+
+  // Árvore solicitada pelo utilizador:
+  houseBalance?: number;        // Saldo da casa (reserva líquida)
+  totalUsersBalance?: number;   // Saldo dos jogadores
+  wageredToday?: number;        // Total apostado hoje
+  paidOutToday?: number;        // Total pago em prêmios hoje
+  houseProfit?: number;         // Lucro da casa total
+  houseProfitToday?: number;    // Lucro da casa hoje
+  profitMarginPercent?: number; // Margem de lucro (%)
+  betsTodayCount?: number;
+  wonTodayCount?: number;
+  totalDepositsVolume?: number;
+  totalWithdrawalsVolume?: number;
+  depositsToday?: number;
+  withdrawalsToday?: number;
+  dailyReports?: DailyReportItem[];
 }

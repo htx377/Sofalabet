@@ -8,8 +8,24 @@ export interface User {
   passwordHash: string;
   role: UserRole;
   isBlocked: boolean;
+  referralCode?: string;
+  referralLink?: string;
+  referredBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Referral {
+  id: string;
+  inviterId: string;
+  inviterName: string;
+  invitedUserId: string;
+  invitedUserName: string;
+  invitedUserPhone: string;
+  totalBonusEarned: number;
+  depositsCount: number;
+  createdAt: string;
+  lastBonusAt?: string;
 }
 
 export interface Wallet {

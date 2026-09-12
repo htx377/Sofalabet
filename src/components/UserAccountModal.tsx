@@ -23,18 +23,24 @@ import {
   Search,
   Filter,
   Check,
+  Gift,
+  Share2,
 } from 'lucide-react';
+import { ReferralPanel } from './ReferralPanel.tsx';
 
 interface UserAccountModalProps {
   onClose?: () => void;
-  defaultTab?: 'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions';
+  defaultTab?: 'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions' | 'referrals';
+  initialTab?: 'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions' | 'referrals';
   onNavigateToAdmin?: () => void;
 }
 
-export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab = 'wallet', onNavigateToAdmin }) => {
+export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab = 'wallet', initialTab, onNavigateToAdmin }) => {
   const { user, refreshUserData } = useAuth();
   const { isLiveConnected, onBetChange } = useRealtime();
-  const [activeTab, setActiveTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'wallet' | 'deposit' | 'withdraw' | 'bets' | 'transactions' | 'referrals'>(
+    initialTab || defaultTab
+  );
 
   const [bets, setBets] = useState<Bet[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -47,10 +53,11 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
 
   // Sincroniza tab padrão caso prop externa mude (ex: clique em "Minhas Apostas" no Header)
   useEffect(() => {
-    if (defaultTab) {
-      setActiveTab(defaultTab);
+    const target = initialTab || defaultTab;
+    if (target) {
+      setActiveTab(target);
     }
-  }, [defaultTab]);
+  }, [defaultTab, initialTab]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -319,6 +326,19 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
           <CreditCard className="w-4 h-4" />
           <span>Extrato (Ledger)</span>
         </button>
+
+        <button
+          id="tab-referrals"
+          onClick={() => setActiveTab('referrals')}
+          className={`py-3 sm:py-3.5 px-3 sm:px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-1.5 sm:gap-2 whitespace-nowrap ${
+            activeTab === 'referrals'
+              ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-slate-400 hover:text-amber-300'
+          }`}
+        >
+          <Gift className="w-4 h-4 text-amber-400" />
+          <span>Convide & Ganhe (5%)</span>
+        </button>
       </div>
 
       {/* Content Area */}
@@ -389,6 +409,28 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                     <span className="text-base font-bold text-emerald-400 mt-1 block">MZN (Metical)</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Referral Bonus Promotion Card */}
+              <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-amber-950/50 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                    <Gift className="w-3 h-3" />
+                    <span>Programa de Convite • Bónus 5%</span>
+                  </div>
+                  <h4 className="font-extrabold text-sm text-white">Convide Amigos e Ganhe 5% de Bónus</h4>
+                  <p className="text-xs text-slate-300">
+                    Receba 5% de bónus real a cada depósito feito pelos amigos que convidar.
+                  </p>
+                </div>
+                <button
+                  id="wallet-open-referrals-btn"
+                  onClick={() => setActiveTab('referrals')}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shrink-0 flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95"
+                >
+                  <Gift className="w-3.5 h-3.5" />
+                  <span>Ver Meu Código & Bónus</span>
+                </button>
               </div>
 
               {/* Recent Ledger Transactions Preview */}
@@ -863,6 +905,9 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
             )}
           </div>
         )}
+
+        {/* ================= TAB: REFERRALS (5% BONUS) ================= */}
+        {activeTab === 'referrals' && <ReferralPanel />}
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ export class AdminController {
     const pendingBets = allBets.filter((b) => b.status === 'PENDING').length;
     const wonBets = allBets.filter((b) => b.status === 'WON').length;
     const lostBets = allBets.filter((b) => b.status === 'LOST').length;
+    const voidBets = allBets.filter((b) => b.status === 'VOID').length;
 
     let totalBetVolume = 0;
     for (const b of allBets) {
@@ -45,6 +46,108 @@ export class AdminController {
       totalBalanceMoved = Money.add(totalBalanceMoved, Math.abs(tx.amount));
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Today's metrics
+    let wageredToday = 0;
+    let betsTodayCount = 0;
+    let wonTodayCount = 0;
+    let paidOutToday = 0;
+
+    for (const b of allBets) {
+      const isToday = b.createdAt && b.createdAt.startsWith(todayStr);
+      if (isToday) {
+        wageredToday = Money.add(wageredToday, b.stake);
+        betsTodayCount++;
+      }
+      if (b.status === 'WON') {
+        const isSettledToday = (b.settledAt && b.settledAt.startsWith(todayStr)) || isToday;
+        if (isSettledToday) {
+          paidOutToday = Money.add(paidOutToday, b.potentialReturn);
+          wonTodayCount++;
+        }
+      }
+    }
+
+    // Deposits and withdrawals volume
+    let totalDepositsVolume = 0;
+    let totalWithdrawalsVolume = 0;
+    let depositsToday = 0;
+    let withdrawalsToday = 0;
+
+    for (const tx of db.transactions) {
+      const isToday = tx.createdAt && tx.createdAt.startsWith(todayStr);
+      if (tx.type === 'DEPOSIT') {
+        totalDepositsVolume = Money.add(totalDepositsVolume, tx.amount);
+        if (isToday) depositsToday = Money.add(depositsToday, tx.amount);
+      } else if (tx.type === 'WITHDRAWAL') {
+        const amt = Math.abs(tx.amount);
+        totalWithdrawalsVolume = Money.add(totalWithdrawalsVolume, amt);
+        if (isToday) withdrawalsToday = Money.add(withdrawalsToday, amt);
+      }
+    }
+
+    // Total balance in all user wallets
+    let totalUsersBalance = 0;
+    for (const wal of db.wallets.values()) {
+      totalUsersBalance = Money.add(totalUsersBalance, wal.balance);
+    }
+
+    // Lucro da casa (GGR = Total apostado - Total pago em prémios)
+    const houseProfit = Money.subtract(totalBetVolume, totalDisbursedPayout);
+    const houseProfitToday = Money.subtract(wageredToday, paidOutToday);
+    const profitMarginPercent = totalBetVolume > 0 ? Math.round(((houseProfit / totalBetVolume) * 100) * 10) / 10 : 0;
+
+    // Saldo da casa: Reserva operacional da casa (fundos disponíveis + retenções líquidas)
+    // House liquid vault = Net platform deposits (Deposits - Withdrawals)
+    const houseLiquidBalance = Math.max(0, Money.subtract(totalDepositsVolume, totalWithdrawalsVolume));
+
+    // Daily breakdown for last 14 days
+    const dailyMap = new Map<string, { date: string; wagered: number; paidOut: number; profit: number; betsCount: number; deposits: number; withdrawals: number; newUsers: number }>();
+    
+    // Seed last 14 days
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const ds = d.toISOString().split('T')[0];
+      dailyMap.set(ds, { date: ds, wagered: 0, paidOut: 0, profit: 0, betsCount: 0, deposits: 0, withdrawals: 0, newUsers: 0 });
+    }
+
+    for (const b of allBets) {
+      const ds = b.createdAt?.split('T')[0];
+      if (ds && dailyMap.has(ds)) {
+        const item = dailyMap.get(ds)!;
+        item.wagered = Money.add(item.wagered, b.stake);
+        item.betsCount++;
+        if (b.status === 'WON') {
+          item.paidOut = Money.add(item.paidOut, b.potentialReturn);
+        }
+        item.profit = Money.subtract(item.wagered, item.paidOut);
+      }
+    }
+
+    for (const tx of db.transactions) {
+      const ds = tx.createdAt?.split('T')[0];
+      if (ds && dailyMap.has(ds)) {
+        const item = dailyMap.get(ds)!;
+        if (tx.type === 'DEPOSIT') {
+          item.deposits = Money.add(item.deposits, tx.amount);
+        } else if (tx.type === 'WITHDRAWAL') {
+          item.withdrawals = Money.add(item.withdrawals, Math.abs(tx.amount));
+        }
+      }
+    }
+
+    for (const u of db.users.values()) {
+      const ds = u.createdAt?.split('T')[0];
+      if (ds && dailyMap.has(ds)) {
+        const item = dailyMap.get(ds)!;
+        item.newUsers++;
+      }
+    }
+
+    const dailyReports = Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
     res.status(200).json({
       stats: {
         totalUsers,
@@ -53,10 +156,153 @@ export class AdminController {
         pendingBets,
         wonBets,
         lostBets,
+        voidBets,
         totalBetVolume,
         totalDisbursedPayout,
         totalBalanceMoved,
         totalTransactions: db.transactions.length,
+
+        // Solicitados explicitamente na árvore:
+        houseBalance: houseLiquidBalance,
+        totalUsersBalance,
+        wageredToday,
+        paidOutToday,
+        houseProfit,
+        houseProfitToday,
+        profitMarginPercent,
+        betsTodayCount,
+        wonTodayCount,
+        totalDepositsVolume,
+        totalWithdrawalsVolume,
+        depositsToday,
+        withdrawalsToday,
+        dailyReports,
+      },
+    });
+  }
+
+  static createUser(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    const { name, phone, email, password, initialBalance, role } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      res.status(400).json({ error: 'O nome completo do jogador é obrigatório.' });
+      return;
+    }
+
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
+      res.status(400).json({ error: 'Número de telemóvel inválido (ex: +258 84 123 4567).' });
+      return;
+    }
+
+    const cleanPhone = phone.trim();
+    const cleanEmail = email && typeof email === 'string' && email.includes('@')
+      ? email.trim().toLowerCase()
+      : `${cleanPhone.replace(/\D/g, '')}@zonabet.mz`;
+
+    // Check if phone or email already exists
+    const existingUser = Array.from(db.users.values()).find(
+      (u) => u.phone.replace(/\D/g, '') === cleanPhone.replace(/\D/g, '') || u.email.toLowerCase() === cleanEmail
+    );
+
+    if (existingUser) {
+      res.status(409).json({ error: 'Já existe um jogador registado com este telemóvel ou email.' });
+      return;
+    }
+
+    const userPassword = password && typeof password === 'string' && password.length >= 6
+      ? password
+      : 'Zona123!';
+
+    const userRole = role === 'ADMIN' ? 'ADMIN' : 'USER';
+    const initBalance = typeof initialBalance === 'number' && initialBalance > 0 ? initialBalance : 0;
+
+    const digitsOnly = cleanPhone.replace(/\D/g, '');
+    const nationalNumber = digitsOnly.startsWith('258') ? digitsOnly.slice(3) : digitsOnly;
+    let referralCode = `ZONA${nationalNumber || Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    if (db.getUserByReferralCode(referralCode)) {
+      let uniqueSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      referralCode = `${referralCode}-${uniqueSuffix}`;
+      while (db.getUserByReferralCode(referralCode)) {
+        referralCode = `ZONA-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      }
+    }
+
+    const host = req.get('host') || 'localhost:3000';
+    const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const individualReferralLink = `${proto}://${host}/?ref=${referralCode}`;
+
+    const newUser = {
+      id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: name.trim(),
+      email: cleanEmail,
+      phone: cleanPhone,
+      passwordHash: bcrypt.hashSync(userPassword, 10),
+      role: userRole as any,
+      isBlocked: false,
+      referralCode,
+      referralLink: individualReferralLink,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    db.users.set(newUser.id, newUser);
+
+    // Initialize wallet
+    const newWallet = {
+      id: `wal-${Date.now()}-${newUser.id.substring(0, 8)}`,
+      userId: newUser.id,
+      balance: initBalance,
+      lockedBalance: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    db.wallets.set(newUser.id, newWallet);
+
+    if (initBalance > 0) {
+      db.transactions.push({
+        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        walletId: newWallet.id,
+        userId: newUser.id,
+        type: 'DEPOSIT',
+        amount: initBalance,
+        previousBalance: 0,
+        nextBalance: initBalance,
+        reference: `CAD-ADMIN-${Date.now().toString().slice(-6)}`,
+        description: `Depósito inicial concedido no registo administrativo por ${req.user.email}`,
+        status: 'COMPLETED',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    AuditService.log(
+      req.user.userId,
+      req.user.email,
+      'CREATE_USER',
+      'User',
+      newUser.id,
+      {},
+      { name: newUser.name, phone: newUser.phone, email: newUser.email, role: newUser.role, initialBalance: initBalance },
+      req.ip
+    );
+
+    supabaseService.syncUserRealtime(newUser).catch(console.error);
+
+    res.status(201).json({
+      message: `Jogador "${newUser.name}" cadastrado com sucesso!`,
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        role: newUser.role,
+        balance: initBalance,
+        referralCode: newUser.referralCode,
+        referralLink: newUser.referralLink,
+        tempPassword: userPassword,
       },
     });
   }
@@ -190,8 +436,13 @@ export class AdminController {
   }
 
   static getUsers(req: AuthenticatedRequest, res: Response): void {
+    const host = req.get('host') || 'localhost:3000';
+    const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+
     const users = Array.from(db.users.values()).map((u) => {
       const wallet = db.wallets.get(u.id);
+      const code = u.referralCode || `ZONA${u.phone.replace(/\D/g, '').slice(-9)}`;
+      const referralLink = u.referralLink || `${proto}://${host}/?ref=${code}`;
       return {
         id: u.id,
         name: u.name,
@@ -200,6 +451,9 @@ export class AdminController {
         role: u.role,
         isBlocked: u.isBlocked,
         balance: wallet?.balance || 0,
+        referralCode: code,
+        referralLink,
+        referredBy: u.referredBy,
         createdAt: u.createdAt,
       };
     });
@@ -489,26 +743,27 @@ export class AdminController {
 
           // Log transaction
           const transactionId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-          db.transactions.set(transactionId, {
+          const newTx = {
             id: transactionId,
             walletId: wallet.id,
             userId: bet.userId,
-            type: 'REFUND',
+            type: 'REFUND' as const,
             amount: bet.stake,
             previousBalance,
             nextBalance: wallet.balance,
             reference: bet.id,
             description: `Reembolso por cancelamento/exclusão do Jogo (Aposta #${bet.id})`,
-            status: 'COMPLETED',
+            status: 'COMPLETED' as const,
             createdAt: new Date().toISOString(),
-          });
+          };
+          db.transactions.push(newTx);
 
           // Void the bet
           bet.status = 'VOID';
           bet.settledAt = new Date().toISOString();
           
           supabaseService.syncWalletRealtime(wallet).catch(console.error);
-          supabaseService.syncTransactionRealtime(db.transactions.get(transactionId)!).catch(console.error);
+          supabaseService.syncTransactionRealtime(newTx).catch(console.error);
         }
       });
     }

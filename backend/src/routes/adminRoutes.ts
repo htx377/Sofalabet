@@ -15,6 +15,7 @@ router.post('/matches/:id/result', AdminController.enterResult);
 router.post('/matches/:id/cancel', AdminController.cancelMatch);
 
 router.get('/users', AdminController.getUsers);
+router.post('/users', AdminController.createUser);
 router.patch('/users/:id/block', AdminController.toggleUserBlock);
 router.patch('/users/:id/role', AdminController.changeUserRole);
 router.post('/users/:id/reset-password', AdminController.resetUserPassword);

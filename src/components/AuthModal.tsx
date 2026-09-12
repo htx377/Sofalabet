@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { X, Lock, Mail, User, Phone, ShieldCheck, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { X, Lock, Mail, User, Phone, ShieldCheck, Eye, EyeOff, Sparkles, Gift } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,6 +22,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('ref') || params.get('codigo') || params.get('código') || localStorage.getItem('zonabet_ref') || '';
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref') || params.get('codigo') || params.get('código') || localStorage.getItem('zonabet_ref');
+      if (ref) {
+        setReferralCode(ref);
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -63,6 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
           phone: cleanPhone.startsWith('+') ? cleanPhone : `+258 ${cleanPhone}`,
           password,
           confirmPassword,
+          referralCode: referralCode.trim() || undefined,
         });
       }
       onClose();
@@ -242,6 +260,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              {/* Código de Convite / Padrinho (Opcional - Bónus 5%) */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Código de Convite <span className="text-slate-500 font-normal">(Opcional)</span>
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                    <Gift className="w-3 h-3" />
+                    <span>Bónus de 5%</span>
+                  </span>
+                </div>
+                <div className="relative">
+                  <Gift className="w-4 h-4 text-amber-400 absolute left-3 top-3" />
+                  <input
+                    id="register-referral-code-input"
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="Ex: ZONA841234567 ou celular do amigo"
+                    className="w-full bg-slate-800/80 border border-slate-700 focus:border-amber-500/80 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <span>💡 O seu amigo que o convidou recebe 5% de bónus a cada depósito seu.</span>
+                </p>
               </div>
             </>
           ) : (

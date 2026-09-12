@@ -44,6 +44,14 @@ export const api = {
   login: (body: any) => request<any>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request<{ user: any }>('/auth/me'),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),
+  getReferrals: () =>
+    request<{
+      referralCode: string;
+      bonusPercentage: number;
+      totalInvited: number;
+      totalBonusEarned: number;
+      invitedUsers: any[];
+    }>('/auth/referrals'),
 
   // Matches
   getMatches: (params?: { status?: string; competitionId?: string; category?: string }) => {
@@ -116,6 +124,18 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
   getUsers: () => request<{ users: any[] }>('/admin/users'),
+  adminCreateUser: (body: {
+    name: string;
+    phone: string;
+    email?: string;
+    password?: string;
+    initialBalance?: number;
+    role?: 'USER' | 'ADMIN';
+  }) =>
+    request<{ message: string; user: any }>('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   toggleUserBlock: (userId: string) =>
     request<{ message: string; user: any }>(`/admin/users/${userId}/block`, { method: 'PATCH' }),
   changeUserRole: (userId: string, role: 'USER' | 'ADMIN') =>
