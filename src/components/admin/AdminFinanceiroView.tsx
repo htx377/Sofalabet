@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WalletTransaction, DepositProof } from '../../types.ts';
+import { WalletTransaction, DepositProof, User } from '../../types.ts';
 import {
   DollarSign,
   ArrowDownLeft,
@@ -14,24 +14,32 @@ import {
   Download,
   AlertCircle,
   FileText,
+  UserCog,
+  PlusCircle,
+  MinusCircle,
 } from 'lucide-react';
+import { AdjustBalanceModal } from '../AdjustBalanceModal.tsx';
 
 interface AdminFinanceiroViewProps {
   transactions: WalletTransaction[];
   depositProofs: DepositProof[];
-  activeSubTab: 'depositos' | 'levantamentos' | 'transacoes';
-  setActiveSubTab: (tab: 'depositos' | 'levantamentos' | 'transacoes') => void;
+  users?: User[];
+  activeSubTab: 'depositos' | 'levantamentos' | 'transacoes' | 'saldos';
+  setActiveSubTab: (tab: 'depositos' | 'levantamentos' | 'transacoes' | 'saldos') => void;
   onReviewDepositProof: (proofId: string, status: 'APPROVED' | 'REJECTED', notes?: string) => Promise<void>;
   setSelectedProof: (proof: DepositProof | null) => void;
+  onBalanceAdjusted?: () => void;
 }
 
 export const AdminFinanceiroView: React.FC<AdminFinanceiroViewProps> = ({
   transactions,
   depositProofs,
+  users,
   activeSubTab,
   setActiveSubTab,
   onReviewDepositProof,
   setSelectedProof,
+  onBalanceAdjusted,
 }) => {
   // Deposit Proofs Filter
   const [proofFilter, setProofFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
@@ -136,6 +144,18 @@ export const AdminFinanceiroView: React.FC<AdminFinanceiroViewProps> = ({
           >
             <History className="w-3.5 h-3.5" />
             <span>Histórico de transações</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('saldos')}
+            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
+              activeSubTab === 'saldos'
+                ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-750 border border-slate-700'
+            }`}
+          >
+            <UserCog className="w-3.5 h-3.5" />
+            <span>Gestão Manual de Saldo</span>
           </button>
         </div>
       </div>
@@ -526,6 +546,302 @@ export const AdminFinanceiroView: React.FC<AdminFinanceiroViewProps> = ({
         </div>
       )}
 
+      {/* ================= SUB-VIEW 4: GESTÃO MANUAL DE SALDO ================= */}
+      {activeSubTab === 'saldos' && (
+        <AdminSaldosView users={users || []} transactions={transactions} onBalanceAdjusted={onBalanceAdjusted} />
+      )}
+
     </div>
   );
 };
+
+// Componente para Gestão Manual de Saldo
+const AdminSaldosView: React.FC<{ users: User[], transactions: WalletTransaction[], onBalanceAdjusted?: () => void }> = ({ users, transactions, onBalanceAdjusted }) => {
+  const [tab, setTab] = useState<'ajustar' | 'historico'>('ajustar');
+  
+  // Adjust Tab State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'ALL' | 'ACTIVE' | 'BLOCKED' | 'WITH_BALANCE' | 'WITHOUT_BALANCE'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+
+  // Historico Tab State
+  const [histSearch, setHistSearch] = useState('');
+
+  // 1. Filter Users
+  const filteredUsers = users.filter((u) => {
+    // a. Text Search
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      if (
+        !u.name.toLowerCase().includes(term) &&
+        !(u.phone && u.phone.toLowerCase().includes(term)) &&
+        !u.id.toLowerCase().includes(term)
+      ) {
+        return false;
+      }
+    }
+    // b. Category Filters
+    if (filterType === 'ACTIVE') return !u.isBlocked;
+    if (filterType === 'BLOCKED') return u.isBlocked;
+    if (filterType === 'WITH_BALANCE') return (u.balance || 0) > 0;
+    if (filterType === 'WITHOUT_BALANCE') return (u.balance || 0) <= 0;
+    
+    return true;
+  });
+
+  // 2. Pagination
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
+
+  const adjustmentTx = transactions.filter(t => t.type === 'ADJUSTMENT');
+  const filteredTx = adjustmentTx.filter(t => {
+    if (!histSearch.trim()) return true;
+    const term = histSearch.toLowerCase();
+    return (
+      t.id.toLowerCase().includes(term) ||
+      t.userId.toLowerCase().includes(term) ||
+      t.description?.toLowerCase().includes(term)
+    );
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Tabs Internas */}
+      <div className="flex border-b border-slate-800">
+        <button
+          onClick={() => setTab('ajustar')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${
+            tab === 'ajustar' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-300'
+          }`}
+        >
+          Ajustar Saldo
+        </button>
+        <button
+          onClick={() => setTab('historico')}
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${
+            tab === 'historico' ? 'border-amber-500 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-300'
+          }`}
+        >
+          Histórico
+        </button>
+      </div>
+
+      {tab === 'ajustar' && (
+        <div className="bg-slate-800/60 p-4 border border-slate-700/80 rounded-xl space-y-4">
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <UserCog className="w-5 h-5 text-amber-400" />
+            Adicionar / Remover Saldo Manualmente
+          </h3>
+          <p className="text-xs text-slate-400">
+            Pesquise e selecione qualquer utilizador da plataforma para ajustar o seu saldo. As operações gerarão um registo de auditoria imutável.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Pesquisar por nome, telefone ou ID do usuário..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as any)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+            >
+              <option value="ALL">Todos os Utilizadores</option>
+              <option value="ACTIVE">Ativos</option>
+              <option value="BLOCKED">Bloqueados</option>
+              <option value="WITH_BALANCE">Com Saldo</option>
+              <option value="WITHOUT_BALANCE">Sem Saldo</option>
+            </select>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden mt-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-800/90 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                  <tr>
+                    <th className="py-3 px-3">Usuário</th>
+                    <th className="py-3 px-3">Contato</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3 text-right">Saldo Atual</th>
+                    <th className="py-3 px-3 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 font-medium">
+                  {paginatedUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-500">
+                        Nenhum usuário encontrado com os filtros atuais.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedUsers.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-800/60 transition-colors">
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-white text-sm">{u.name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">ID: {u.id}</div>
+                          {u.createdAt && (
+                            <div className="text-[10px] text-slate-500">
+                              Registo: {new Date(u.createdAt).toLocaleDateString('pt-PT')}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-slate-300">
+                          {u.phone || '-'}
+                        </td>
+                        <td className="py-3 px-3">
+                          {u.isBlocked ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] font-bold">
+                              Bloqueado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                              Ativo
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="font-black text-emerald-400 text-sm">
+                            {(u.balance || 0).toFixed(2)} MT
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setIsAdjustModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-bold text-[10px] rounded-lg transition-colors whitespace-nowrap"
+                          >
+                            SELECIONAR
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Paginação */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-t border-slate-700">
+                <span className="text-xs text-slate-400">
+                  Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, filteredUsers.length)} de {filteredUsers.length}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'historico' && (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Pesquisar histórico por ID da transação, ID do usuário, motivo..."
+              value={histSearch}
+              onChange={(e) => setHistSearch(e.target.value)}
+              className="w-full sm:w-96 bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/90 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-700">
+                <tr>
+                  <th className="py-3 px-3">Data / Hora</th>
+                  <th className="py-3 px-3">Transação</th>
+                  <th className="py-3 px-3">ID Usuário</th>
+                  <th className="py-3 px-3">Motivo</th>
+                  <th className="py-3 px-3 text-right">Valor</th>
+                  <th className="py-3 px-3 text-right">Saldo Ant.</th>
+                  <th className="py-3 px-3 text-right">Saldo Pós.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {filteredTx.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      Nenhum histórico de ajuste encontrado.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTx.map(tx => (
+                    <tr key={tx.id} className="hover:bg-slate-800/40">
+                      <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
+                        {new Date(tx.createdAt).toLocaleString('pt-PT')}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[10px] text-slate-400">
+                        {tx.id}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-emerald-400">
+                        {tx.userId}
+                      </td>
+                      <td className="py-3 px-3 text-slate-300">
+                        {tx.description}
+                      </td>
+                      <td className={`py-3 px-3 text-right font-black whitespace-nowrap ${tx.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {tx.amount >= 0 ? `+${tx.amount.toFixed(2)}` : tx.amount.toFixed(2)} MT
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-400">
+                        {tx.previousBalance.toFixed(2)} MT
+                      </td>
+                      <td className="py-3 px-3 text-right text-white font-bold">
+                        {tx.nextBalance.toFixed(2)} MT
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {isAdjustModalOpen && selectedUser && (
+        <AdjustBalanceModal
+          user={selectedUser}
+          isOpen={isAdjustModalOpen}
+          onClose={() => setIsAdjustModalOpen(false)}
+          onSuccess={(msg) => {
+            if (onBalanceAdjusted) onBalanceAdjusted();
+          }}
+        />
+      )}
+    </div>
+  );
+};
+

@@ -37,6 +37,8 @@ export const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
     'Depósito presencial verificado',
   ];
 
+  const [isConfirming, setIsConfirming] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (amount <= 0) {
@@ -45,6 +47,11 @@ export const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
     }
     if (mode === 'debit' && currentBalance < amount) {
       setError(`Saldo insuficiente para dedução. O utilizador possui apenas ${currentBalance.toFixed(2)} MZN.`);
+      return;
+    }
+
+    if (!isConfirming) {
+      setIsConfirming(true);
       return;
     }
 
@@ -60,6 +67,7 @@ export const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
       onClose();
     } catch (err: any) {
       setError(err.message || 'Erro ao processar ajuste de saldo');
+      setIsConfirming(false);
     } finally {
       setLoading(false);
     }
@@ -203,24 +211,55 @@ export const AdjustBalanceModal: React.FC<AdjustBalanceModalProps> = ({
             </span>
           </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading || (mode === 'debit' && currentBalance < amount)}
-            className={`w-full py-3 font-black rounded-xl text-xs sm:text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
-              mode === 'credit'
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
-                : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
-            } disabled:opacity-50`}
-          >
-            {loading ? (
-              'A processar transação no Ledger...'
-            ) : mode === 'credit' ? (
-              `Confirmar Crédito de +${amount} MZN no Saldo`
-            ) : (
-              `Confirmar Débito de -${amount} MZN do Saldo`
-            )}
-          </button>
+          {isConfirming ? (
+            <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-rose-400 font-bold">
+                <AlertCircle className="w-5 h-5" />
+                <span>ATENÇÃO: Confirmação de Operação</span>
+              </div>
+              <p className="text-sm text-slate-300">
+                Você está prestes a {mode === 'credit' ? 'adicionar' : 'remover'}{' '}
+                <strong className="text-white">{amount.toFixed(2)} MT</strong>{' '}
+                {mode === 'credit' ? 'ao' : 'do'} usuário <strong className="text-white">{user.name}</strong>.
+                O saldo passará de <strong className="text-white">{currentBalance.toFixed(2)} MT</strong> para{' '}
+                <strong className="text-white">{expectedBalance.toFixed(2)} MT</strong>.
+              </p>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirming(false)}
+                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg transition-colors"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`flex-1 py-2 font-bold rounded-lg transition-colors text-slate-950 ${
+                    mode === 'credit' ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-rose-500 hover:bg-rose-400 text-white'
+                  } disabled:opacity-50`}
+                >
+                  {loading ? 'A processar...' : 'CONFIRMAR OPERAÇÃO'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading || (mode === 'debit' && currentBalance < amount)}
+              className={`w-full py-3 font-black rounded-xl text-xs sm:text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+                mode === 'credit'
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                  : 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
+              } disabled:opacity-50`}
+            >
+              {mode === 'credit' ? (
+                `Confirmar Crédito de +${amount} MZN no Saldo`
+              ) : (
+                `Confirmar Débito de -${amount} MZN do Saldo`
+              )}
+            </button>
+          )}
         </form>
       </div>
     </div>
