@@ -10,6 +10,8 @@ import { UserAccountModal } from './components/UserAccountModal.tsx';
 import { WalletActionModal } from './components/WalletActionModal.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
 import { SecretAdminModal } from './components/SecretAdminModal.tsx';
+import { WhatsAppButton } from './components/WhatsAppButton.tsx';
+import { SystemSettings } from './types.ts';
 import { Shield, Flame, Wallet as WalletIcon, Trophy, Ticket, User as UserIcon, ArrowDownLeft, ArrowUpRight, CheckCircle2, History, AlertCircle, Bell } from 'lucide-react';
 import { subscribeToSettlement } from './utils/settlementEvents.ts';
 import { api } from './api.ts';
@@ -25,11 +27,20 @@ function MainLayout() {
   const [walletModalTab, setWalletModalTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [secretAdminModalOpen, setSecretAdminModalOpen] = useState(false);
   const [adminToast, setAdminToast] = useState<string | null>(null);
+  const [appSettings, setAppSettings] = useState<SystemSettings | null>(null);
   const [settlementToast, setSettlementToast] = useState<{
     title: string;
     message: string;
     type: 'win' | 'settled';
   } | null>(null);
+
+  useEffect(() => {
+    api.getPublicSettings()
+      .then((res) => {
+        if (res?.settings) setAppSettings(res.settings as any);
+      })
+      .catch(() => {});
+  }, []);
 
   // Escuta liquidações de partidas feitas pelo administrador para atualizar todos os usuários apostadores
   useEffect(() => {
@@ -391,6 +402,9 @@ function MainLayout() {
           setTimeout(() => setAdminToast(null), 3500);
         }}
       />
+
+      {/* Floating WhatsApp Support Button */}
+      <WhatsAppButton settings={appSettings?.whatsapp} />
 
     </div>
   );

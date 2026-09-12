@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
-import { Ticket, Trash2, X, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, Lock } from 'lucide-react';
+import { Ticket, Trash2, X, AlertCircle, CheckCircle2, ChevronUp, ChevronDown, Lock, Percent, Info } from 'lucide-react';
 import { parseMatchKickoff } from '../utils/matchUtils.ts';
+import { api } from '../api.ts';
 
 interface BetSlipProps {
   onOpenAuth: () => void;
@@ -11,6 +12,23 @@ interface BetSlipProps {
 
 export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth, onViewHistory }) => {
   const { user } = useAuth();
+  const [feePercentage, setFeePercentage] = useState<number>(5.0);
+  const [feeActive, setFeeActive] = useState<boolean>(true);
+
+  useEffect(() => {
+    api.getPublicSettings()
+      .then((res) => {
+        if (res && res.settings) {
+          if (typeof res.settings.withdrawalFeePercentage === 'number') {
+            setFeePercentage(res.settings.withdrawalFeePercentage);
+          }
+          if (typeof res.settings.withdrawalFeeActive === 'boolean') {
+            setFeeActive(res.settings.withdrawalFeeActive);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
   const {
     items,
     stake,
@@ -238,17 +256,40 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth, onViewHistory }) =
                 </div>
               </div>
 
-              {/* Possible Return */}
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] text-slate-400 block font-medium">Possível Retorno</span>
-                  <span className="text-base font-black text-emerald-400 tracking-tight">
-                    {potentialReturn.toFixed(2)} MT
+              {/* Possible Return & Transparent Fee Notice */}
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block font-medium">Possível Retorno (Bruto)</span>
+                    <span className="text-base font-black text-emerald-400 tracking-tight">
+                      {potentialReturn.toFixed(2)} MT
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 text-right">
+                    Odd Total: {totalOdds.toFixed(2)}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-500 text-right">
-                  Retorno = Stake × Odd Total
-                </span>
+
+                {potentialReturn > 0 && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1 text-xs">
+                    <div className="flex items-center justify-between text-amber-400">
+                      <span className="text-[11px] flex items-center gap-1 font-medium">
+                        <Percent className="w-3 h-3 text-amber-400" />
+                        <span>Taxa de Levantamento ({feeActive ? feePercentage : 0}%):</span>
+                      </span>
+                      <span className="font-mono font-bold text-[11px]">
+                        -{feeActive ? ((potentialReturn * feePercentage) / 100).toFixed(2) : '0.00'} MT
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-emerald-300 font-extrabold">
+                      <span className="text-[11px]">Líquido Estimado no Saque:</span>
+                      <span className="font-mono text-xs">
+                        +{feeActive ? (potentialReturn * (1 - feePercentage / 100)).toFixed(2) : potentialReturn.toFixed(2)} MT
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Feedback messages */}
@@ -485,9 +526,30 @@ export const BetSlip: React.FC<BetSlipProps> = ({ onOpenAuth, onViewHistory }) =
                     ))}
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-slate-950 flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Possível Retorno:</span>
-                    <span className="font-black text-emerald-400 text-sm">{potentialReturn.toFixed(2)} MT</span>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Possível Retorno (Bruto):</span>
+                      <span className="font-black text-emerald-400 text-sm">{potentialReturn.toFixed(2)} MT</span>
+                    </div>
+                    {potentialReturn > 0 && (
+                      <div className="pt-1.5 border-t border-slate-800 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between text-amber-400">
+                          <span className="flex items-center gap-1">
+                            <Percent className="w-2.5 h-2.5" />
+                            <span>Taxa de Levantamento ({feeActive ? feePercentage : 0}%):</span>
+                          </span>
+                          <span className="font-mono font-bold">
+                            -{feeActive ? ((potentialReturn * feePercentage) / 100).toFixed(2) : '0.00'} MT
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-emerald-300 font-extrabold">
+                          <span>Líquido Estimado no Saque:</span>
+                          <span className="font-mono">
+                            +{feeActive ? (potentialReturn * (1 - feePercentage / 100)).toFixed(2) : potentialReturn.toFixed(2)} MT
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {feedback && (

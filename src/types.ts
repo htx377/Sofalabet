@@ -40,18 +40,23 @@ export interface ReferralInfo {
 export interface Selection {
   id: string;
   marketId: string;
-  outcome: '1' | 'X' | '2';
+  outcome: '1' | 'X' | '2' | string;
   label: string;
   odds: number;
   status: 'ACTIVE' | 'SETTLED_WIN' | 'SETTLED_LOST' | 'VOID';
 }
 
+export type MarketType = '1X2' | 'CORRECT_SCORE' | string;
+
 export interface Market {
   id: string;
   matchId: string;
-  type: '1X2';
+  type: MarketType;
   name: string;
   status: 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
+  maxStake?: number;
+  maxPayout?: number;
+  maxExposure?: number;
   selections: Selection[];
 }
 
@@ -91,7 +96,7 @@ export interface BetSlipItem {
   marketId: string;
   marketName: string;
   selectionId: string;
-  outcome: '1' | 'X' | '2';
+  outcome: '1' | 'X' | '2' | string;
   selectionLabel: string;
   odds: number;
 }
@@ -106,7 +111,7 @@ export interface BetItem {
   marketId: string;
   marketName: string;
   selectionId: string;
-  outcome: '1' | 'X' | '2';
+  outcome: '1' | 'X' | '2' | string;
   oddsAtBetTime: number;
   status: 'PENDING' | 'WON' | 'LOST' | 'VOID';
 }
@@ -215,4 +220,105 @@ export interface DashboardStats {
   depositsToday?: number;
   withdrawalsToday?: number;
   dailyReports?: DailyReportItem[];
+}
+
+export interface SystemSettings {
+  // Apostas
+  minStake: number;
+  maxStake: number;
+  maxDailyStakePerUser: number;
+  maxPotentialWin: number;
+  maxPayoutPerEvent: number;
+
+  // Taxas
+  withdrawalFeePercentage: number;
+  withdrawalFeeActive: boolean;
+  minWithdrawal: number;
+  maxWithdrawal: number;
+  minDeposit: number;
+  maxDeposit: number;
+
+  // Risco
+  maxExposurePerMarket: number;
+  maxExposurePerOutcome: number;
+  riskMediumThresholdPct: number;
+  riskHighThresholdPct: number;
+  autoSuspendHighRisk: boolean;
+  riskAlertsEnabled: boolean;
+
+  // Mercados
+  enabledMarkets: {
+    '1X2': boolean;
+    'CORRECT_SCORE': boolean;
+    [key: string]: boolean;
+  };
+
+  // WhatsApp / Apoio
+  whatsapp: {
+    enabled: boolean;
+    phone: string;
+    message: string;
+    buttonText: string;
+    position: 'bottom-right' | 'bottom-left';
+  };
+
+  // Interface & Branding
+  platformName: string;
+  announcementNotice: string;
+  announcementActive: boolean;
+  supportEmail: string;
+  currencySymbol: string;
+  currencyCode: string;
+}
+
+export interface OutcomeRisk {
+  outcome: string;
+  label: string;
+  odds: number;
+  betsCount: number;
+  totalStake: number;
+  potentialPayout: number;
+  netExposure: number;
+}
+
+export interface MarketRisk {
+  marketId: string;
+  marketName: string;
+  marketType: MarketType;
+  matchId: string;
+  matchTitle: string;
+  competitionName: string;
+  status: 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
+  totalBets: number;
+  totalStake: number;
+  highestPossiblePayout: number;
+  netExposure: number;
+  exposureLimit: number;
+  exposurePercentage: number;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  topRiskOutcome: string;
+  outcomes: OutcomeRisk[];
+}
+
+export interface RiskOverview {
+  totalActiveBets: number;
+  totalTurnover: number;
+  totalPossiblePayout: number;
+  totalNetExposure: number;
+  highRiskMarketsCount: number;
+  mediumRiskMarketsCount: number;
+  markets: MarketRisk[];
+  alerts: {
+    id: string;
+    level: 'LOW' | 'MEDIUM' | 'HIGH';
+    message: string;
+    marketId: string;
+    matchTitle: string;
+    createdAt: string;
+  }[];
+  settings: {
+    maxExposurePerMarket: number;
+    autoSuspendHighRisk: boolean;
+    riskHighThresholdPct: number;
+  };
 }

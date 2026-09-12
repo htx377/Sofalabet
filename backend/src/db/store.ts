@@ -526,6 +526,55 @@ class DatabaseStore {
     ];
 
     for (const match of sampleMatches) {
+      // If match doesn't have CORRECT_SCORE market, generate standard realistic odds
+      const hasCS = match.markets.some((m) => m.type === 'CORRECT_SCORE');
+      if (!hasCS) {
+        const m1x2 = match.markets.find((m) => m.type === '1X2');
+        const hOdd = m1x2?.selections.find((s) => s.outcome === '1')?.odds || 2.0;
+        const dOdd = m1x2?.selections.find((s) => s.outcome === 'X')?.odds || 3.0;
+        const aOdd = m1x2?.selections.find((s) => s.outcome === '2')?.odds || 3.5;
+
+        const roundOdd = (val: number, minVal: number = 3.0) =>
+          Math.max(minVal, Math.round(val * 10) / 10);
+
+        const csMarketId = `mkt-${match.id}-cs`;
+        const csConfigs: { score: string; label: string; oddCalc: number }[] = [
+          { score: '1-0', label: `${match.homeTeam} 1-0`, oddCalc: roundOdd(hOdd * 3.2, 4.5) },
+          { score: '2-0', label: `${match.homeTeam} 2-0`, oddCalc: roundOdd(hOdd * 4.8, 6.0) },
+          { score: '2-1', label: `${match.homeTeam} 2-1`, oddCalc: roundOdd(hOdd * 5.5, 7.5) },
+          { score: '3-0', label: `${match.homeTeam} 3-0`, oddCalc: roundOdd(hOdd * 9.0, 11.0) },
+          { score: '3-1', label: `${match.homeTeam} 3-1`, oddCalc: roundOdd(hOdd * 11.0, 14.0) },
+          { score: '3-2', label: `${match.homeTeam} 3-2`, oddCalc: roundOdd(hOdd * 18.0, 22.0) },
+          { score: '0-0', label: 'Empate 0-0', oddCalc: roundOdd(dOdd * 2.8, 6.5) },
+          { score: '1-1', label: 'Empate 1-1', oddCalc: roundOdd(dOdd * 2.0, 5.0) },
+          { score: '2-2', label: 'Empate 2-2', oddCalc: roundOdd(dOdd * 4.2, 12.0) },
+          { score: '3-3', label: 'Empate 3-3', oddCalc: roundOdd(dOdd * 10.0, 28.0) },
+          { score: '0-1', label: `${match.awayTeam} 0-1`, oddCalc: roundOdd(aOdd * 3.2, 5.0) },
+          { score: '0-2', label: `${match.awayTeam} 0-2`, oddCalc: roundOdd(aOdd * 4.8, 7.5) },
+          { score: '1-2', label: `${match.awayTeam} 1-2`, oddCalc: roundOdd(aOdd * 5.5, 8.5) },
+          { score: '0-3', label: `${match.awayTeam} 0-3`, oddCalc: roundOdd(aOdd * 9.0, 14.0) },
+          { score: '1-3', label: `${match.awayTeam} 1-3`, oddCalc: roundOdd(aOdd * 11.0, 16.0) },
+          { score: '2-3', label: `${match.awayTeam} 2-3`, oddCalc: roundOdd(aOdd * 18.0, 24.0) },
+          { score: 'Outro', label: 'Outro Resultado', oddCalc: 15.0 },
+        ];
+
+        match.markets.push({
+          id: csMarketId,
+          matchId: match.id,
+          type: 'CORRECT_SCORE',
+          name: 'Resultado Correto',
+          status: 'OPEN',
+          selections: csConfigs.map((sc, idx) => ({
+            id: `sel-${csMarketId}-${idx + 1}`,
+            marketId: csMarketId,
+            outcome: sc.score,
+            label: sc.label,
+            odds: sc.oddCalc,
+            status: 'ACTIVE',
+          })),
+        });
+      }
+
       this.matches.set(match.id, match);
     }
   }

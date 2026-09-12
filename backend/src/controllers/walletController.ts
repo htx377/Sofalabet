@@ -6,6 +6,8 @@ import { ReferralService } from '../services/referralService.ts';
 import { config } from '../config/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 
+import { settingsService } from '../services/settingsService.ts';
+
 export class WalletController {
   static getWallet(req: AuthenticatedRequest, res: Response): void {
     if (!req.user) {
@@ -136,8 +138,17 @@ export class WalletController {
     const method = (req.body.method || 'EMOLA').toUpperCase();
     const phone = req.body.phoneNumber ? String(req.body.phoneNumber).trim() : '';
 
-    if (isNaN(amount) || amount < 20) {
-      res.status(400).json({ error: 'Montante mínimo de levantamento é de 20,00 MT.' });
+    const settings = settingsService.getSettings();
+    const minWithdrawal = settings.minWithdrawal || 20;
+    const maxWithdrawal = settings.maxWithdrawal || 100000;
+
+    if (isNaN(amount) || amount < minWithdrawal) {
+      res.status(400).json({ error: `Montante mínimo de levantamento é de ${minWithdrawal.toFixed(2)} MT.` });
+      return;
+    }
+
+    if (amount > maxWithdrawal) {
+      res.status(400).json({ error: `Montante máximo de levantamento por pedido é de ${maxWithdrawal.toFixed(2)} MT.` });
       return;
     }
 
@@ -159,28 +170,32 @@ export class WalletController {
     const user = db.users.get(req.user.userId);
     const target = phone || user?.phone || 'Celular Movitel';
 
-    // Calculate automatic 5% withdrawal fee
-    const feeRate = 0.05;
+    // Calculate dynamic withdrawal fee configured by administrator
+    const isFeeActive = settings.withdrawalFeeActive;
+    const feePct = isFeeActive ? settings.withdrawalFeePercentage : 0;
+    const feeRate = feePct / 100;
     const fee = Math.round(amount * feeRate * 100) / 100;
     const netAmount = Math.round((amount - fee) * 100) / 100;
 
     const refCode = `LEV-${shortCode}-${Date.now().toString().slice(-6)}`;
 
     try {
+      const feeText = isFeeActive ? `Taxa ${feePct}%: ${fee.toFixed(2)} MT` : 'Isento de taxa';
       const { wallet: updatedWallet, transaction } = await WalletService.executeTransaction({
         userId: req.user.userId,
         type: 'WITHDRAWAL',
         amount,
         reference: refCode,
-        description: `Levantamento via ${methodLabel} para ${target} (Bruto: ${amount.toFixed(2)} MT | Taxa 5%: ${fee.toFixed(2)} MT | Líquido enviado: ${netAmount.toFixed(2)} MT)`,
+        description: `Levantamento via ${methodLabel} para ${target} (Bruto: ${amount.toFixed(2)} MT | ${feeText} | Líquido enviado: ${netAmount.toFixed(2)} MT)`,
       });
 
       res.status(200).json({
-        message: `Levantamento de ${amount.toFixed(2)} MT processado com sucesso! Taxa de 5%: ${fee.toFixed(2)} MT | Líquido enviado: ${netAmount.toFixed(2)} MT`,
+        message: `Levantamento de ${amount.toFixed(2)} MT processado com sucesso! ${isFeeActive ? `Taxa (${feePct}%): ${fee.toFixed(2)} MT | ` : ''}Líquido enviado: ${netAmount.toFixed(2)} MT`,
         wallet: updatedWallet,
         transaction,
         fee,
-        feeRate,
+        feeRate: feePct,
+        feeActive: isFeeActive,
         netAmount,
         grossAmount: amount,
       });

@@ -6,6 +6,8 @@ import { WalletService } from './walletService.ts';
 import { betMutex } from '../utils/mutex.ts';
 import { supabaseService } from '../db/supabase.ts';
 import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
+import { settingsService } from './settingsService.ts';
+import { RiskService } from './riskService.ts';
 
 export class BetService {
   static async placeBet(params: {
@@ -15,6 +17,7 @@ export class BetService {
     idempotencyKey?: string;
   }): Promise<Bet> {
     const { userId, items, stake, idempotencyKey } = params;
+    const settings = settingsService.getSettings();
 
     // Check idempotency if key provided
     if (idempotencyKey) {
@@ -30,12 +33,14 @@ export class BetService {
     if (!user) throw new Error('Utilizador não encontrado');
     if (user.isBlocked) throw new Error('Conta bloqueada. Não é possível efetuar apostas.');
 
-    // Validate stake limits (Mínimo de 20 MT)
-    if (stake < config.limits.minimumStake) {
-      throw new Error(`O montante mínimo por aposta é ${config.limits.minimumStake} MT (${config.limits.minimumStake} MZN)`);
+    // Validate stake limits dynamically from administrator settings
+    const minStake = settings.minStake || 20;
+    const maxStake = settings.maxStake || 50000;
+    if (stake < minStake) {
+      throw new Error(`O montante mínimo por aposta é ${minStake} MT (${minStake} MZN)`);
     }
-    if (stake > config.limits.maximumStake) {
-      throw new Error(`O montante máximo por aposta é ${config.limits.maximumStake} MZN`);
+    if (stake > maxStake) {
+      throw new Error(`O montante máximo por aposta é ${maxStake} MZN`);
     }
 
     // Acquire bet mutex to serialize bet placements
@@ -101,11 +106,13 @@ export class BetService {
       const finalTotalOdds = Math.round(totalOdds * 100) / 100;
       const potentialReturn = Money.multiply(stake, finalTotalOdds);
 
-      if (potentialReturn > config.limits.maximumPotentialWin) {
-        throw new Error(
-          `O retorno potencial máximo permitido é ${config.limits.maximumPotentialWin} MZN. Retorno calculado: ${potentialReturn} MZN`
-        );
-      }
+      // Perform centralized risk validation (limits per user, exposure, max win)
+      RiskService.checkBetRisk({
+        userId,
+        items,
+        stake,
+        potentialReturn,
+      });
 
       const betId = `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       for (const item of validatedItems) {

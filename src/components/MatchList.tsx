@@ -4,7 +4,7 @@ import { api } from '../api.ts';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
 import { useRealtime } from '../context/RealtimeContext.tsx';
 import { TeamBadge } from './TeamBadge.tsx';
-import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio, Lock } from 'lucide-react';
+import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio, Lock, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
 import { subscribeToSettlement } from '../utils/settlementEvents.ts';
 
@@ -16,6 +16,7 @@ export const MatchList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pulsingMatchId, setPulsingMatchId] = useState<string | null>(null);
+  const [expandedCorrectScore, setExpandedCorrectScore] = useState<Record<string, boolean>>({});
   const [, setTick] = useState<number>(Date.now());
 
   const { items: slipItems, toggleSelection, updateSelectionOdds } = useBetSlip();
@@ -488,6 +489,91 @@ export const MatchList: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Correct Score Market (Resultado Correto / Placar Exato) */}
+              {(() => {
+                const correctScoreMarket = match.markets.find((m) => m.type === 'CORRECT_SCORE');
+                if (!correctScoreMarket || !correctScoreMarket.selections || correctScoreMarket.selections.length === 0) {
+                  return null;
+                }
+                const isExpanded = !!expandedCorrectScore[match.id];
+
+                return (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-800/80">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedCorrectScore((prev) => ({
+                          ...prev,
+                          [match.id]: !prev[match.id],
+                        }))
+                      }
+                      className="flex items-center justify-between w-full text-xs font-bold text-slate-300 hover:text-white bg-slate-800/40 hover:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/50 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5 text-cyan-400">
+                        <Target className="w-3.5 h-3.5" />
+                        <span>Resultado Correto ({correctScoreMarket.selections.length} opções)</span>
+                      </span>
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <span>{isExpanded ? 'Ocultar cotações' : 'Ver Placares Exatos'}</span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                          <span>Selecione o resultado exato da partida:</span>
+                          <span className="font-mono text-cyan-400">Odd de Pagamento</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                          {correctScoreMarket.selections.map((sel) => {
+                            const inSlip = isSelectionInSlip(sel.id);
+                            return (
+                              <button
+                                key={sel.id}
+                                disabled={!isBettingOpen}
+                                onClick={() =>
+                                  toggleSelection({
+                                    matchId: match.id,
+                                    matchTitle: `${match.homeTeam} vs ${match.awayTeam}`,
+                                    competitionName: match.competitionName,
+                                    kickoff: `${match.kickoffDate} ${match.kickoffTime}`,
+                                    marketId: correctScoreMarket.id,
+                                    marketName: 'Resultado Correto',
+                                    selectionId: sel.id,
+                                    outcome: sel.outcome,
+                                    selectionLabel: `Placar ${sel.label}`,
+                                    odds: sel.odds,
+                                  })
+                                }
+                                className={`py-2 px-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                                  inSlip
+                                    ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black shadow-md'
+                                    : isBettingOpen
+                                    ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/70 text-white active:scale-95'
+                                    : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
+                                }`}
+                              >
+                                <span className={`text-xs font-extrabold ${inSlip ? 'text-slate-950' : 'text-slate-200'}`}>
+                                  {sel.label}
+                                </span>
+                                <span className={`text-xs font-mono font-black ${inSlip ? 'text-slate-950' : 'text-cyan-400'}`}>
+                                  @{sel.odds.toFixed(2)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

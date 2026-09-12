@@ -25,6 +25,7 @@ import {
   Check,
   Gift,
   Share2,
+  Percent,
 } from 'lucide-react';
 import { ReferralPanel } from './ReferralPanel.tsx';
 
@@ -50,6 +51,8 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
   // Filtros da aba de histórico de apostas
   const [betStatusFilter, setBetStatusFilter] = useState<'ALL' | 'PENDING' | 'WON' | 'LOST' | 'VOID'>('ALL');
   const [betSearch, setBetSearch] = useState('');
+  const [feePercentage, setFeePercentage] = useState<number>(5.0);
+  const [feeActive, setFeeActive] = useState<boolean>(true);
 
   // Sincroniza tab padrão caso prop externa mude (ex: clique em "Minhas Apostas" no Header)
   useEffect(() => {
@@ -63,12 +66,21 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
     if (!user) return;
     setLoading(true);
     try {
-      const [betsRes, txRes] = await Promise.all([
+      const [betsRes, txRes, settingsRes] = await Promise.all([
         api.getUserBets(),
         api.getTransactions(),
+        api.getPublicSettings().catch(() => null),
       ]);
       setBets(betsRes.bets);
       setTransactions(txRes.transactions);
+      if (settingsRes?.settings) {
+        if (typeof settingsRes.settings.withdrawalFeePercentage === 'number') {
+          setFeePercentage(settingsRes.settings.withdrawalFeePercentage);
+        }
+        if (typeof settingsRes.settings.withdrawalFeeActive === 'boolean') {
+          setFeeActive(settingsRes.settings.withdrawalFeeActive);
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -390,6 +402,24 @@ export const UserAccountModal: React.FC<UserAccountModalProps> = ({ defaultTab =
                       <CreditCard className="w-4 h-4" />
                       <span>Extrato</span>
                     </button>
+                  </div>
+                </div>
+
+                {/* Transparent Withdrawal Fee Notice when checking balance */}
+                <div className="mt-3 p-3 rounded-xl bg-orange-950/25 border border-orange-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+                      <Percent className="w-3 h-3" />
+                    </span>
+                    <span>
+                      Taxa de levantamento e-Mola: <strong className="text-orange-400 font-bold">{feeActive ? feePercentage : 0}%</strong>
+                    </span>
+                  </div>
+                  <div className="text-emerald-300 font-medium sm:text-right">
+                    <span>Líquido disponível para saque: </span>
+                    <span className="font-mono font-black text-white">
+                      +{feeActive ? (user.balance * (1 - feePercentage / 100)).toFixed(2) : user.balance.toFixed(2)} MZN
+                    </span>
                   </div>
                 </div>
 

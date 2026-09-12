@@ -36,6 +36,8 @@ export class SettlementService {
       winningOutcome = '2';
     }
 
+    const correctScoreStr = `${homeScore}-${awayScore}`;
+
     const previousStatus = match.status;
 
     // Update match score & status
@@ -44,14 +46,35 @@ export class SettlementService {
     match.status = 'FINISHED';
     match.updatedAt = new Date().toISOString();
 
-    // Update market selections
+    // Update market selections according to market type
     for (const market of match.markets) {
       market.status = 'SETTLED';
-      for (const sel of market.selections) {
-        if (sel.outcome === winningOutcome) {
-          sel.status = 'SETTLED_WIN';
-        } else {
-          sel.status = 'SETTLED_LOST';
+      if (market.type === 'CORRECT_SCORE') {
+        let matched = false;
+        for (const sel of market.selections) {
+          if (sel.outcome === correctScoreStr) {
+            sel.status = 'SETTLED_WIN';
+            matched = true;
+          } else {
+            sel.status = 'SETTLED_LOST';
+          }
+        }
+        // If exact score was not an explicitly listed selection, "Outro" wins
+        if (!matched) {
+          for (const sel of market.selections) {
+            if (sel.outcome === 'OTHER' || sel.outcome === 'Outro' || sel.label.toLowerCase().includes('outro')) {
+              sel.status = 'SETTLED_WIN';
+            }
+          }
+        }
+      } else {
+        // Standard 1X2 market
+        for (const sel of market.selections) {
+          if (sel.outcome === winningOutcome) {
+            sel.status = 'SETTLED_WIN';
+          } else {
+            sel.status = 'SETTLED_LOST';
+          }
         }
       }
     }
@@ -70,7 +93,32 @@ export class SettlementService {
 
       // Update the status of each matching item
       for (const item of matchingItems) {
-        if (item.outcome === winningOutcome) {
+        const market = match.markets.find((m) => m.id === item.marketId);
+        const isCorrectScore =
+          market?.type === 'CORRECT_SCORE' || item.marketName.toLowerCase().includes('correto');
+
+        let isWon = false;
+        if (isCorrectScore) {
+          if (item.outcome === correctScoreStr) {
+            isWon = true;
+          } else if (
+            item.outcome === 'OTHER' ||
+            item.outcome === 'Outro' ||
+            item.outcome.toLowerCase().includes('outro')
+          ) {
+            const commonScores = [
+              '0-0', '1-0', '2-0', '2-1', '1-1', '2-2', '3-0', '3-1', '3-2',
+              '0-1', '0-2', '1-2', '0-3', '1-3', '2-3', '3-3',
+            ];
+            if (!commonScores.includes(correctScoreStr)) {
+              isWon = true;
+            }
+          }
+        } else {
+          isWon = item.outcome === winningOutcome;
+        }
+
+        if (isWon) {
           item.status = 'WON';
         } else {
           item.status = 'LOST';

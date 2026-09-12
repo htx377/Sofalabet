@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../api.ts';
 import {
@@ -10,6 +10,7 @@ import {
   RefreshCw,
   ChevronRight,
   Info,
+  Percent,
 } from 'lucide-react';
 
 interface WithdrawalPanelProps {
@@ -21,7 +22,6 @@ interface WithdrawalPanelProps {
 type WithdrawalMethod = 'EMOLA';
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000];
-const WITHDRAWAL_FEE_RATE = 0.05; // 5% fee on winnings withdrawal
 
 export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
   onSuccess,
@@ -39,6 +39,36 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
     return '';
   });
 
+  // Dynamic system settings
+  const [feePercentage, setFeePercentage] = useState<number>(5.0);
+  const [feeActive, setFeeActive] = useState<boolean>(true);
+  const [minWithdrawal, setMinWithdrawal] = useState<number>(20);
+  const [maxWithdrawal, setMaxWithdrawal] = useState<number>(50000);
+
+  useEffect(() => {
+    api
+      .getPublicSettings()
+      .then((res) => {
+        if (res.settings) {
+          if (res.settings.withdrawalFeePercentage !== undefined) {
+            setFeePercentage(Number(res.settings.withdrawalFeePercentage));
+          }
+          if (res.settings.withdrawalFeeActive !== undefined) {
+            setFeeActive(Boolean(res.settings.withdrawalFeeActive));
+          }
+          if (res.settings.minWithdrawal !== undefined) {
+            setMinWithdrawal(Number(res.settings.minWithdrawal));
+          }
+          if (res.settings.maxWithdrawal !== undefined) {
+            setMaxWithdrawal(Number(res.settings.maxWithdrawal));
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback default is 5.0%
+      });
+  }, []);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{
@@ -54,16 +84,22 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
   const availableBalance = user?.balance ?? 0;
   const numericAmount = parseFloat(amount) || 0;
 
-  // Automatic calculation of the 5% fee and net payout
-  const feeAmount = Math.round(numericAmount * WITHDRAWAL_FEE_RATE * 100) / 100;
+  // Dynamic calculation of the fee and net payout
+  const activeRate = feeActive ? feePercentage / 100 : 0;
+  const feeAmount = Math.round(numericAmount * activeRate * 100) / 100;
   const netAmount = Math.max(0, Math.round((numericAmount - feeAmount) * 100) / 100);
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (numericAmount < 20) {
-      setError('O montante mínimo de levantamento é de 20,00 MT.');
+    if (numericAmount < minWithdrawal) {
+      setError(`O montante mínimo de levantamento é de ${minWithdrawal.toFixed(2)} MT.`);
+      return;
+    }
+
+    if (numericAmount > maxWithdrawal) {
+      setError(`O montante máximo por pedido de levantamento é de ${maxWithdrawal.toFixed(2)} MT.`);
       return;
     }
 
@@ -196,9 +232,9 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
             </div>
             <div className="flex justify-between font-sans text-amber-400">
               <span className="flex items-center gap-1">
-                <span>Taxa de Levantamento (5%):</span>
+                <span>Taxa de Levantamento ({feeActive ? feePercentage : 0}%):</span>
               </span>
-              <span className="font-bold">-{successData.fee.toFixed(2)} MT</span>
+              <span className="font-bold font-mono">-{successData.fee.toFixed(2)} MT</span>
             </div>
             <div className="flex justify-between font-sans text-emerald-400 font-black">
               <span>Valor Líquido Transferido:</span>
@@ -371,39 +407,52 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
           </div>
 
           {/* Fee & Calculation Summary */}
-          <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 text-xs space-y-2">
+          <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 text-xs space-y-3 shadow-md">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-300">Cálculo Automático do Levantamento</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                Taxa de 5% Aplicada
+              <span className="font-black text-white flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5 text-rose-400" />
+                <span>Demonstrativo de Levantamento</span>
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  feeActive
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}
+              >
+                {feeActive ? `Taxa de ${feePercentage}% Ativa` : 'Taxa Isenta (0%)'}
               </span>
             </div>
 
-            <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-              <div className="flex justify-between text-slate-400">
-                <span>Montante Solicitado (Débito da conta):</span>
-                <span className="font-bold text-white">{numericAmount.toFixed(2)} MT</span>
+            <div className="space-y-2 pt-1 border-t border-slate-800 font-mono text-xs">
+              <div className="flex justify-between text-slate-300 font-sans">
+                <span>Valor solicitado:</span>
+                <span className="font-bold text-white font-mono">{numericAmount.toFixed(2)} MT</span>
               </div>
-              <div className="flex justify-between text-amber-400">
-                <span>Taxa de Levantamento (5% automática):</span>
+              <div className="flex justify-between text-rose-400 font-sans">
+                <span>Taxa de levantamento ({feeActive ? feePercentage : 0}%):</span>
                 <span className="font-bold font-mono">-{feeAmount.toFixed(2)} MT</span>
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Saldo Restante na ZONABET:</span>
-                <span className="font-bold text-slate-300">
-                  {Math.max(0, availableBalance - numericAmount).toFixed(2)} MT
-                </span>
+              <div className="flex justify-between text-emerald-400 font-sans font-black text-sm pt-1 border-t border-slate-800">
+                <span>Valor líquido que receberá:</span>
+                <span className="font-mono text-base">+{netAmount.toFixed(2)} MT</span>
+              </div>
+              <div className="flex justify-between text-slate-400 font-sans text-[11px]">
+                <span>Valor total descontado do saldo:</span>
+                <span className="font-mono text-slate-300">{numericAmount.toFixed(2)} MT</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm font-black pt-2 border-t border-slate-800 bg-slate-950/60 p-2.5 rounded-lg">
-              <div className="flex flex-col">
-                <span className="text-white">Valor Líquido a Receber no e-Mola:</span>
-                <span className="text-[10px] text-slate-400 font-normal">Creditado diretamente no número indicado</span>
+            {/* Prominent Pre-Confirmation Notice mandated by prompt */}
+            <div className="p-3 bg-gradient-to-r from-orange-950/40 via-amber-950/30 to-slate-900 border border-orange-500/40 rounded-xl text-xs text-orange-200 flex items-start gap-2">
+              <Info className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Aviso de Transferência:</span>
+                <span>
+                  "Taxa de levantamento: {feeActive ? feePercentage : 0}%. Você receberá:{' '}
+                  <strong>{netAmount.toFixed(2)} MT</strong>."
+                </span>
               </div>
-              <span className="text-base font-extrabold text-orange-400 font-mono">
-                +{netAmount.toFixed(2)} MT
-              </span>
             </div>
           </div>
 
@@ -411,7 +460,7 @@ export const WithdrawalPanel: React.FC<WithdrawalPanelProps> = ({
           <button
             id="withdraw-submit-btn"
             type="submit"
-            disabled={loading || numericAmount < 20 || numericAmount > availableBalance}
+            disabled={loading || numericAmount < minWithdrawal || numericAmount > availableBalance}
             className="w-full py-3.5 px-4 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
           >
             {loading ? (

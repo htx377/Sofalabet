@@ -8,6 +8,8 @@ import {
   Bet,
   WalletTransaction,
   DepositProof,
+  SystemSettings,
+  RiskOverview,
 } from '../types.ts';
 import { api } from '../api.ts';
 import { AdjustBalanceModal } from './AdjustBalanceModal.tsx';
@@ -20,6 +22,7 @@ import { AdminApostasView } from './admin/AdminApostasView.tsx';
 import { AdminFinanceiroView } from './admin/AdminFinanceiroView.tsx';
 import { AdminRelatoriosView } from './admin/AdminRelatoriosView.tsx';
 import { AdminConfiguracoesView } from './admin/AdminConfiguracoesView.tsx';
+import { AdminRiscoView } from './admin/AdminRiscoView.tsx';
 import {
   Shield,
   Plus,
@@ -66,6 +69,7 @@ export type AdminSection =
   | 'jogos'
   | 'apostas'
   | 'financeiro'
+  | 'risco'
   | 'relatorios'
   | 'configuracoes';
 
@@ -75,6 +79,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
   const [jogosSubTab, setJogosSubTab] = useState<'todos' | 'criar' | 'editar' | 'encerrar' | 'resultado'>('todos');
   const [apostasSubTab, setApostasSubTab] = useState<'todas' | 'pendentes' | 'vencedoras' | 'perdedoras' | 'anuladas'>('todas');
   const [financeiroSubTab, setFinanceiroSubTab] = useState<'depositos' | 'levantamentos' | 'transacoes'>('depositos');
+
+  // Dynamic system settings & Risk overview
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [totalFeeCollected, setTotalFeeCollected] = useState<number>(0);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [riskOverview, setRiskOverview] = useState<RiskOverview | null>(null);
+  const [loadingRisk, setLoadingRisk] = useState(false);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -227,6 +238,80 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     }
   };
 
+  const loadSettingsData = async () => {
+    setLoadingSettings(true);
+    try {
+      const res = await api.getAdminSettings();
+      if (res.settings) {
+        setSettings(res.settings);
+        setTotalFeeCollected(res.totalFeeCollected || 0);
+      }
+    } catch (e: any) {
+      console.warn('Erro ao carregar configurações do sistema:', e);
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
+
+  const loadRiskData = async () => {
+    setLoadingRisk(true);
+    try {
+      const res = await api.getRiskOverview();
+      if (res) {
+        setRiskOverview(res);
+      }
+    } catch (e: any) {
+      console.warn('Erro ao carregar dados de risco:', e);
+    } finally {
+      setLoadingRisk(false);
+    }
+  };
+
+  const handleUpdateSettings = async (newSettings: Partial<SystemSettings>) => {
+    try {
+      const res = await api.updateAdminSettings(newSettings);
+      if (res.success && res.settings) {
+        setSettings(res.settings);
+        notifySuccess('Configurações salvas e aplicadas em tempo real!');
+        await loadSettingsData();
+      } else {
+        notifyError(res.message || 'Erro ao atualizar configurações');
+      }
+    } catch (e: any) {
+      notifyError(e.message || 'Erro ao comunicar com o servidor');
+    }
+  };
+
+  const handleToggleMarketStatus = async (matchId: string, marketId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'SUSPENDED' ? 'OPEN' : 'SUSPENDED';
+      const res = await api.updateMarket(matchId, marketId, { status: newStatus });
+      if (res.success) {
+        notifySuccess(`Mercado ${newStatus === 'OPEN' ? 'reaberto' : 'suspenso'} com sucesso!`);
+        await loadRiskData();
+        await loadData();
+      } else {
+        notifyError(res.message || 'Falha ao alterar estado do mercado');
+      }
+    } catch (e: any) {
+      notifyError(e.message || 'Erro ao alterar estado do mercado');
+    }
+  };
+
+  const handleUpdateRiskSettings = async (riskSettings: any) => {
+    try {
+      const res = await api.updateRiskSettings(riskSettings);
+      if (res.success) {
+        notifySuccess('Parâmetros de controlo de risco atualizados com sucesso!');
+        await loadRiskData();
+      } else {
+        notifyError(res.message || 'Falha ao atualizar parâmetros de risco');
+      }
+    } catch (e: any) {
+      notifyError(e.message || 'Erro ao atualizar parâmetros de risco');
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     setActionError(null);
@@ -241,6 +326,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
         api.getAdminTransactions(),
         api.getAdminDepositProofs(),
         fetchSupabaseInfo(),
+        loadSettingsData(),
+        loadRiskData(),
       ]);
 
       setStats(dashRes.stats);
@@ -583,6 +670,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             count: depositProofs.filter((p) => p.status === 'PENDING').length || null,
             isAlert: depositProofs.some((p) => p.status === 'PENDING'),
           },
+          {
+            id: 'risco',
+            label: '🛡️ RISCO & EXPOSIÇÃO',
+            count: riskOverview?.highRiskCount || null,
+            isAlert: !!riskOverview && riskOverview.highRiskCount > 0,
+          },
           { id: 'relatorios', label: '📊 RELATÓRIOS', count: null },
           { id: 'configuracoes', label: '⚙️ CONFIGURAÇÕES', count: null },
         ].map((tab) => {
@@ -706,14 +799,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
           />
         )}
 
-        {/* 6. 📊 RELATÓRIOS */}
+        {/* 6. 🛡️ GESTÃO DE RISCO */}
+        {section === 'risco' && (
+          <AdminRiscoView
+            riskData={riskOverview}
+            loading={loadingRisk}
+            onRefresh={loadRiskData}
+            onToggleMarketStatus={handleToggleMarketStatus}
+            onUpdateRiskSettings={handleUpdateRiskSettings}
+          />
+        )}
+
+        {/* 7. 📊 RELATÓRIOS */}
         {section === 'relatorios' && (
           <AdminRelatoriosView stats={stats} />
         )}
 
-        {/* 7. ⚙️ CONFIGURAÇÕES */}
+        {/* 8. ⚙️ CONFIGURAÇÕES */}
         {section === 'configuracoes' && (
           <AdminConfiguracoesView
+            settings={settings}
+            totalFeeCollected={totalFeeCollected}
+            onUpdateSettings={handleUpdateSettings}
+            loadingSettings={loadingSettings}
             auditLogs={auditLogs}
             supabaseStatus={supabaseStatus}
             supabaseSchemaSql={supabaseSchemaSql}

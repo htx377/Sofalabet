@@ -31,4 +31,14 @@ router.get('/deposit-proofs', AdminController.getDepositProofs);
 router.patch('/deposit-proofs/:id/status', AdminController.updateDepositProofStatus);
 router.get('/audit-logs', AdminController.getAuditLogs);
 
+// System Settings & Risk Control
+router.get('/settings', AdminController.getSettings);
+router.put('/settings', AdminController.updateSettings);
+router.get('/risk', AdminController.getRiskOverview);
+
+// Market Granular Controls (1X2, Correct Score, Custom Markets)
+router.patch('/matches/:matchId/markets/:marketId/status', AdminController.updateMarketStatus);
+router.put('/matches/:matchId/markets/:marketId/odds', AdminController.updateMarketOdds);
+router.post('/matches/:matchId/markets/:marketId/selections', AdminController.addMarketSelection);
+
 export default router;

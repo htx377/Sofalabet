@@ -7,6 +7,7 @@ import walletRoutes from './routes/walletRoutes.ts';
 import adminRoutes from './routes/adminRoutes.ts';
 import supabaseRoutes from './routes/supabaseRoutes.ts';
 import { rateLimiter } from './middleware/auth.ts';
+import { settingsService } from './services/settingsService.ts';
 
 export function createExpressApp() {
   const app = express();
@@ -40,6 +41,10 @@ export function createExpressApp() {
   });
 
   // REST API Routes
+  app.get('/api/settings/public', (req: Request, res: Response) => {
+    res.json({ settings: settingsService.getPublicSettings() });
+  });
+
   app.use('/api/auth', authRoutes);
   app.use('/api/matches', matchRoutes);
   app.use('/api/bets', betRoutes);

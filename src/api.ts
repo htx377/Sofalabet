@@ -192,4 +192,57 @@ export const api = {
     }),
   getSupabaseSchema: () =>
     request<{ sql: string }>('/supabase/schema'),
+
+  // Public Settings
+  getPublicSettings: () => request<{ settings: any }>('/settings/public'),
+
+  // Admin Settings & Risk Management
+  getAdminSettings: () => request<{ settings: any; totalFeeCollected?: number }>('/admin/settings'),
+  updateAdminSettings: (body: any) =>
+    request<{ success?: boolean; message: string; settings: any }>('/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  getAdminRiskOverview: () => request<{ risk: any }>('/admin/risk'),
+  getRiskOverview: () =>
+    request<{ risk: any }>('/admin/risk').then((r) => r.risk),
+  updateRiskSettings: (body: any) =>
+    request<{ success: boolean; message: string; settings: any }>('/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ riskManagement: body }),
+    }),
+
+  // Granular Market Controls
+  updateMarket: (matchId: string, marketId: string, data: { status?: string; reason?: string }) =>
+    request<{ success: boolean; message: string; market: any }>(
+      `/admin/matches/${matchId}/markets/${marketId}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    ),
+  updateMarketStatus: (matchId: string, marketId: string, status: string, reason?: string) =>
+    request<{ message: string; market: any }>(
+      `/admin/matches/${matchId}/markets/${marketId}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status, reason }),
+      }
+    ),
+  updateMarketOdds: (matchId: string, marketId: string, selections: { selectionId: string; odds: number }[]) =>
+    request<{ message: string; market: any }>(
+      `/admin/matches/${matchId}/markets/${marketId}/odds`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ selections }),
+      }
+    ),
+  addMarketSelection: (matchId: string, marketId: string, outcome: string, label: string, odds: number) =>
+    request<{ message: string; market: any }>(
+      `/admin/matches/${matchId}/markets/${marketId}/selections`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ outcome, label, odds }),
+      }
+    ),
 };

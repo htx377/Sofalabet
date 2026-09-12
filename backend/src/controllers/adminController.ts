@@ -15,6 +15,8 @@ import {
 } from '../validators/schemas.ts';
 import { Money } from '../utils/money.ts';
 import { supabaseService } from '../db/supabase.ts';
+import { settingsService } from '../services/settingsService.ts';
+import { RiskService } from '../services/riskService.ts';
 
 export class AdminController {
   static getDashboardStats(req: AuthenticatedRequest, res: Response): void {
@@ -842,5 +844,124 @@ export class AdminController {
       message: `Comprovativo de depósito atualizado para ${status}.`,
       proof: updated,
     });
+  }
+
+  static getSettings(req: AuthenticatedRequest, res: Response): void {
+    const settings = settingsService.getSettings();
+    res.status(200).json({ settings });
+  }
+
+  static updateSettings(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    try {
+      const updated = settingsService.updateSettings(
+        req.body,
+        req.user.userId,
+        req.user.email,
+        req.ip
+      );
+      res.status(200).json({
+        message: 'Configurações do sistema atualizadas e auditadas com sucesso!',
+        settings: updated,
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erro ao atualizar configurações' });
+    }
+  }
+
+  static getPublicSettings(req: AuthenticatedRequest, res: Response): void {
+    const publicSettings = settingsService.getPublicSettings();
+    res.status(200).json({ settings: publicSettings });
+  }
+
+  static getRiskOverview(req: AuthenticatedRequest, res: Response): void {
+    try {
+      const risk = RiskService.getRiskOverview();
+      res.status(200).json({ risk });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao calcular gestão de risco' });
+    }
+  }
+
+  static updateMarketStatus(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) return;
+    const { matchId, marketId } = req.params;
+    const { status, reason } = req.body;
+
+    if (!['OPEN', 'SUSPENDED', 'CLOSED'].includes(status)) {
+      res.status(400).json({ error: 'Estado de mercado inválido' });
+      return;
+    }
+
+    try {
+      const market = MatchService.updateMarketStatus({
+        adminId: req.user.userId,
+        adminEmail: req.user.email,
+        matchId,
+        marketId,
+        status,
+        reason,
+        ip: req.ip,
+      });
+      res.status(200).json({ message: `Estado do mercado alterado para ${status}`, market });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  static updateMarketOdds(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) return;
+    const { matchId, marketId } = req.params;
+    const { selections } = req.body;
+
+    if (!Array.isArray(selections)) {
+      res.status(400).json({ error: 'Lista de seleções inválida' });
+      return;
+    }
+
+    try {
+      const market = MatchService.updateMarketOdds({
+        adminId: req.user.userId,
+        adminEmail: req.user.email,
+        matchId,
+        marketId,
+        selections,
+        ip: req.ip,
+      });
+      res.status(200).json({ message: 'Odds do mercado atualizadas com sucesso', market });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  static addMarketSelection(req: AuthenticatedRequest, res: Response): void {
+    if (!req.user) return;
+    const { matchId, marketId } = req.params;
+    const { outcome, label, odds } = req.body;
+
+    if (!outcome || !label || !odds || odds <= 1.0) {
+      res.status(400).json({ error: 'Dados da seleção inválidos. Odd deve ser maior que 1.00.' });
+      return;
+    }
+
+    try {
+      const market = MatchService.addMarketSelection({
+        adminId: req.user.userId,
+        adminEmail: req.user.email,
+        matchId,
+        marketId,
+        outcome,
+        label,
+        odds: Number(odds),
+        ip: req.ip,
+      });
+      res.status(201).json({ message: 'Nova opção de resultado adicionada com sucesso!', market });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   }
 }
