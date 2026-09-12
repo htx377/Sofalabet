@@ -1,3 +1,4 @@
+import { supabaseService } from '../db/supabase.ts';
 import { SystemSettings } from '../types/index.ts';
 import { AuditService } from './auditService.ts';
 
@@ -52,16 +53,34 @@ const DEFAULT_SETTINGS: SystemSettings = {
 
 class SettingsServiceClass {
   private settings: SystemSettings;
+  private lastFetchTime: number = 0;
 
   constructor() {
     this.settings = { ...DEFAULT_SETTINGS };
   }
 
-  public getSettings(): SystemSettings {
+  public async getSettings(): Promise<SystemSettings> {
+    const client = supabaseService.getClient();
+    // Fetch from Supabase with basic 5 second cache to prevent spamming
+    if (client && Date.now() - this.lastFetchTime > 5000) {
+      try {
+        const { data, error } = await client
+          .from('system_settings')
+          .select('config')
+          .eq('id', 'default')
+          .single();
+        if (data && data.config) {
+          this.settings = { ...this.settings, ...data.config };
+          this.lastFetchTime = Date.now();
+        }
+      } catch (e) {
+        console.error('Failed to fetch settings from Supabase:', e);
+      }
+    }
     return { ...this.settings };
   }
 
-  public getPublicSettings(): {
+  public async getPublicSettings(): Promise<{
     withdrawalFeePercentage: number;
     withdrawalFeeActive: boolean;
     minWithdrawal: number;
@@ -76,8 +95,8 @@ class SettingsServiceClass {
     currencySymbol: string;
     currencyCode: string;
     enabledMarkets: SystemSettings['enabledMarkets'];
-  } {
-    const s = this.settings;
+  }> {
+    const s = await this.getSettings();
     return {
       withdrawalFeePercentage: s.withdrawalFeeActive ? s.withdrawalFeePercentage : 0,
       withdrawalFeeActive: s.withdrawalFeeActive,
@@ -96,12 +115,14 @@ class SettingsServiceClass {
     };
   }
 
-  public updateSettings(
+  public async updateSettings(
     newValues: Partial<SystemSettings>,
     adminId: string,
     adminEmail: string,
     ip: string = '127.0.0.1'
-  ): SystemSettings {
+  ): Promise<SystemSettings> {
+    await this.getSettings(); // sync first
+    
     const oldSettings = { ...this.settings };
 
     // Deep merge nested fields safely
@@ -135,7 +156,12 @@ class SettingsServiceClass {
       this.settings,
       ip
     );
-
+    
+    const client = supabaseService.getClient();
+    if (client) {
+      await client.from('system_settings').upsert({ id: 'default', config: this.settings });
+    }
+    
     return { ...this.settings };
   }
 }

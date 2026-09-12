@@ -138,7 +138,7 @@ export class WalletController {
     const method = (req.body.method || 'EMOLA').toUpperCase();
     const phone = req.body.phoneNumber ? String(req.body.phoneNumber).trim() : '';
 
-    const settings = settingsService.getSettings();
+    const settings = await settingsService.getSettings();
     const minWithdrawal = settings.minWithdrawal || 20;
     const maxWithdrawal = settings.maxWithdrawal || 100000;
 

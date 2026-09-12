@@ -846,12 +846,12 @@ export class AdminController {
     });
   }
 
-  static getSettings(req: AuthenticatedRequest, res: Response): void {
-    const settings = settingsService.getSettings();
+  static async getSettings(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const settings = await settingsService.getSettings();
     res.status(200).json({ settings });
   }
 
-  static updateSettings(req: AuthenticatedRequest, res: Response): void {
+  static async updateSettings(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
@@ -873,14 +873,14 @@ export class AdminController {
     }
   }
 
-  static getPublicSettings(req: AuthenticatedRequest, res: Response): void {
-    const publicSettings = settingsService.getPublicSettings();
+  static async getPublicSettings(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const publicSettings = await settingsService.getPublicSettings();
     res.status(200).json({ settings: publicSettings });
   }
 
-  static getRiskOverview(req: AuthenticatedRequest, res: Response): void {
+  static async getRiskOverview(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const risk = RiskService.getRiskOverview();
+      const risk = await RiskService.getRiskOverview();
       res.status(200).json({ risk });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Erro ao calcular gestão de risco' });

@@ -3,8 +3,8 @@ import { MarketRisk, OutcomeRisk, RiskOverview } from '../types/index.ts';
 import { settingsService } from './settingsService.ts';
 
 export class RiskService {
-  static getRiskOverview(): RiskOverview {
-    const settings = settingsService.getSettings();
+  static async getRiskOverview(): Promise<RiskOverview> {
+    const settings = await settingsService.getSettings();
     const globalExposureLimit = settings.maxExposurePerMarket || 200000;
     const highThresholdPct = settings.riskHighThresholdPct || 80;
     const mediumThresholdPct = settings.riskMediumThresholdPct || 50;
@@ -207,13 +207,13 @@ export class RiskService {
     };
   }
 
-  static checkBetRisk(params: {
+  static async checkBetRisk(params: {
     userId: string;
     items: { matchId: string; marketId: string; selectionId: string }[];
     stake: number;
     potentialReturn: number;
-  }): void {
-    const settings = settingsService.getSettings();
+  }): Promise<void> {
+    const settings = await settingsService.getSettings();
 
     // 1. Check max stake per bet
     if (params.stake > settings.maxStake) {

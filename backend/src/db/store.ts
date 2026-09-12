@@ -28,6 +28,7 @@ class DatabaseStore {
   public teams: Team[] = [];
   public matches: Map<string, Match> = new Map();
   public bets: Map<string, Bet> = new Map();
+  public settings: any = null;
   public auditLogs: AuditLog[] = [];
   public idempotencyRecords: Map<string, IdempotencyRecord> = new Map();
   public depositProofs: DepositProof[] = [];

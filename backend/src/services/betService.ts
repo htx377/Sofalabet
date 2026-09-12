@@ -107,7 +107,7 @@ export class BetService {
       const potentialReturn = Money.multiply(stake, finalTotalOdds);
 
       // Perform centralized risk validation (limits per user, exposure, max win)
-      RiskService.checkBetRisk({
+      await RiskService.checkBetRisk({
         userId,
         items,
         stake,

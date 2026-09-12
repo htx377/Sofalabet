@@ -31,7 +31,7 @@ export function createExpressApp() {
   });
 
   // Health check
-  app.get('/api/health', (req: Request, res: Response) => {
+  app.get('/api/health', (req: Request, res: Response, next: NextFunction) => {
     res.json({
       status: 'ok',
       service: 'ZONABET API',
@@ -41,8 +41,8 @@ export function createExpressApp() {
   });
 
   // REST API Routes
-  app.get('/api/settings/public', (req: Request, res: Response) => {
-    res.json({ settings: settingsService.getPublicSettings() });
+  app.get('/api/settings/public', (req: Request, res: Response, next: NextFunction) => {
+    settingsService.getPublicSettings().then(settings => res.json({ settings })).catch(next);
   });
 
   app.use('/api/auth', authRoutes);
