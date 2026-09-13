@@ -12,7 +12,7 @@ import { supabaseService } from '../db/supabase.ts';
 import { ReferralService } from '../services/referralService.ts';
 
 export class AuthController {
-  static register(req: Request, res: Response): void {
+  static async register(req: Request, res: Response): Promise<void> {
     const parseResult = registerSchema.safeParse(req.body);
     if (!parseResult.success) {
       res.status(400).json({ error: parseResult.error.issues[0].message });
@@ -112,7 +112,7 @@ export class AuthController {
     }
 
     // Initialize user wallet with 0.00 MZN
-    const wallet = WalletService.getWallet(userId);
+    const wallet = await WalletService.getWallet(userId);
     wallet.balance = 0.00;
     wallet.updatedAt = new Date().toISOString();
 
@@ -146,7 +146,7 @@ export class AuthController {
     });
   }
 
-  static login(req: Request, res: Response): void {
+  static async login(req: Request, res: Response): Promise<void> {
     const parseResult = loginSchema.safeParse(req.body);
     if (!parseResult.success) {
       res.status(400).json({ error: parseResult.error.issues[0].message });
@@ -183,7 +183,7 @@ export class AuthController {
     };
 
     const token = jwt.sign(tokenPayload, config.jwtSecret, { expiresIn: '7d' });
-    const wallet = WalletService.getWallet(user.id);
+    const wallet = await WalletService.getWallet(user.id);
 
     if (user.role === 'ADMIN') {
       AuditService.log(
@@ -219,7 +219,7 @@ export class AuthController {
     });
   }
 
-  static me(req: AuthenticatedRequest, res: Response): void {
+  static async me(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
@@ -231,7 +231,7 @@ export class AuthController {
       return;
     }
 
-    const wallet = WalletService.getWallet(user.id);
+    const wallet = await WalletService.getWallet(user.id);
     const host = req.get('host') || 'localhost:3000';
     const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
     const computedReferralLink = user.referralLink || `${proto}://${host}/?ref=${user.referralCode || `ZONA${user.phone.replace(/\D/g, '').slice(-9)}`}`;

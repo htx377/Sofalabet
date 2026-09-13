@@ -1,6 +1,7 @@
 import { db } from '../db/store.ts';
 import { WalletService } from './walletService.ts';
 import { Referral } from '../types/index.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export class ReferralService {
   /**
@@ -11,13 +12,28 @@ export class ReferralService {
     invitedUserId: string,
     depositAmount: number
   ): Promise<{ bonusAmount: number; inviterId: string; inviterName: string } | null> {
-    const invitedUser = db.users.get(invitedUserId);
-    if (!invitedUser || !invitedUser.referredBy) {
+    const client = supabaseService.getClient();
+    if (!client) return null;
+
+    // 1. Find the invited user profile
+    const { data: invitedUser, error: invitedError } = await client
+      .from('profiles')
+      .select('id, name, phone, referred_by')
+      .eq('id', invitedUserId)
+      .single();
+    
+    if (invitedError || !invitedUser || !invitedUser.referred_by) {
       return null;
     }
 
-    const inviter = db.users.get(invitedUser.referredBy);
-    if (!inviter || inviter.isBlocked) {
+    // 2. Find the inviter profile
+    const { data: inviter, error: inviterError } = await client
+      .from('profiles')
+      .select('id, name, phone, status')
+      .eq('id', invitedUser.referred_by)
+      .single();
+    
+    if (inviterError || !inviter || inviter.status === 'BLOCKED') {
       return null;
     }
 
@@ -41,9 +57,6 @@ export class ReferralService {
         description,
       });
 
-      // Update the referral record in store
-      db.updateReferralBonus(invitedUserId, bonusAmount);
-
       console.log(
         `[ReferralService] Bónus de 5% (${bonusAmount} MT) creditado com sucesso a ${inviter.name} (${inviter.phone}) pelo depósito de ${invitedUser.name} (${depositAmount} MT).`
       );
@@ -62,24 +75,47 @@ export class ReferralService {
   /**
    * Retrieves complete referral dashboard info for a user
    */
-  static getReferralInfo(userId: string) {
-    const user = db.users.get(userId);
-    if (!user) {
+  static async getReferralInfo(userId: string) {
+    const client = supabaseService.getClient();
+    if (!client) throw new Error('Supabase indisponível');
+
+    const { data: user, error: userError } = await client
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (userError || !user) {
       throw new Error('Utilizador não encontrado');
     }
 
-    const referrals = db.getReferralsByInviter(userId);
-    const totalBonusEarned = referrals.reduce((sum, r) => sum + (r.totalBonusEarned || 0), 0);
-    const referralCode = user.referralCode || `ZONA${user.phone.replace(/\D/g, '').slice(-9)}`;
-    const referralLink = user.referralLink || `/?ref=${referralCode}`;
+    // Get referrals (users invited by this user)
+    const { data: referrals, error: refError } = await client
+      .from('profiles')
+      .select('id, name, phone, created_at')
+      .eq('referred_by', userId);
+    
+    const referralList = referrals || [];
+    
+    // Get total bonuses from transaction history
+    const { data: bonuses, error: bonusError } = await client
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .ilike('description', '%Bónus de Convite%');
+    
+    const totalBonusEarned = (bonuses || []).reduce((sum, b) => sum + Number(b.amount), 0);
+
+    const referralCode = user.referral_code || `ZONA${user.phone.replace(/\D/g, '').slice(-9)}`;
+    const referralLink = `/?ref=${referralCode}`;
 
     return {
       referralCode,
       referralLink,
       bonusPercentage: 5,
-      totalInvited: referrals.length,
+      totalInvited: referralList.length,
       totalBonusEarned: Math.round(totalBonusEarned * 100) / 100,
-      invitedUsers: referrals,
+      invitedUsers: referralList,
     };
   }
 }

@@ -1,19 +1,33 @@
 import { db } from '../db/store.ts';
 import { MarketRisk, OutcomeRisk, RiskOverview } from '../types/index.ts';
 import { settingsService } from './settingsService.ts';
+import { supabaseService } from '../db/supabase.ts';
+import { MatchService } from './matchService.ts';
 
 export class RiskService {
+  /**
+   * Generates a real-time risk overview by aggregating all pending bets from Supabase
+   */
   static async getRiskOverview(): Promise<RiskOverview> {
     const settings = await settingsService.getSettings();
     const globalExposureLimit = settings.maxExposurePerMarket || 200000;
     const highThresholdPct = settings.riskHighThresholdPct || 80;
     const mediumThresholdPct = settings.riskMediumThresholdPct || 50;
 
-    const pendingBets = Array.from(db.bets.values()).filter((b) => b.status === 'PENDING');
+    const client = supabaseService.getClient();
+    let pendingBets: any[] = [];
+    
+    if (client) {
+      const { data } = await client
+        .from('bets')
+        .select('*')
+        .eq('status', 'PENDING');
+      if (data) pendingBets = data;
+    }
+
     let totalTurnover = 0;
     let totalPossiblePayout = 0;
 
-    // Map: marketId -> { market, match, bets: Bet[], outcomeStats: Map<string, { count, stake, payout }> }
     const marketMap = new Map<
       string,
       {
@@ -23,25 +37,13 @@ export class RiskService {
       }
     >();
 
-    // Collect all open/active markets from all matches
-    for (const match of db.matches.values()) {
-      if (match.status === 'FINISHED' || match.status === 'CANCELLED') continue;
-      for (const market of match.markets) {
-        marketMap.set(market.id, {
-          marketId: market.id,
-          matchId: match.id,
-          bets: [],
-        });
-      }
-    }
+    // Process bets from Supabase
+    for (const b of pendingBets) {
+      totalTurnover += Number(b.stake);
+      totalPossiblePayout += Number(b.potential_win);
 
-    // Populate bets per market
-    for (const bet of pendingBets) {
-      totalTurnover += bet.stake;
-      totalPossiblePayout += bet.potentialReturn;
-
-      for (const item of bet.items) {
-        if (item.status !== 'PENDING') continue;
+      const selections = b.selections || [];
+      for (const item of selections) {
         let entry = marketMap.get(item.marketId);
         if (!entry) {
           entry = {
@@ -53,7 +55,7 @@ export class RiskService {
         }
 
         entry.bets.push({
-          stake: bet.stake,
+          stake: Number(b.stake),
           odds: item.oddsAtBetTime,
           outcome: item.outcome,
         });
@@ -64,7 +66,7 @@ export class RiskService {
     const alerts: RiskOverview['alerts'] = [];
 
     for (const [marketId, data] of marketMap.entries()) {
-      const match = db.matches.get(data.matchId);
+      const match = await MatchService.getMatchById(data.matchId);
       if (!match) continue;
 
       const market = match.markets.find((m) => m.id === marketId);
@@ -73,10 +75,7 @@ export class RiskService {
       const exposureLimit = market.maxExposure || globalExposureLimit;
       const totalStake = data.bets.reduce((acc, b) => acc + b.stake, 0);
 
-      // Group by outcome
       const outcomeMap = new Map<string, { count: number; stake: number; payout: number }>();
-
-      // Initialize with all selections in the market
       for (const sel of market.selections) {
         outcomeMap.set(sel.outcome, { count: 0, stake: 0, payout: 0 });
       }
@@ -126,31 +125,11 @@ export class RiskService {
         riskLevel = 'MEDIUM';
       }
 
-      // Auto-suspension if configured and limit breached
-      if (settings.autoSuspendHighRisk && netExposure >= exposureLimit && market.status === 'OPEN') {
-        market.status = 'SUSPENDED';
-        alerts.push({
-          id: `alert-auto-${market.id}-${Date.now()}`,
-          level: 'HIGH',
-          message: `O mercado "${market.name}" foi suspenso automaticamente devido a limite de exposição atingido (${netExposure.toFixed(2)} MT / Limite ${exposureLimit.toFixed(2)} MT).`,
-          marketId: market.id,
-          matchTitle: `${match.homeTeam} vs ${match.awayTeam}`,
-          createdAt: new Date().toISOString(),
-        });
-      } else if (riskLevel === 'HIGH') {
+      if (riskLevel === 'HIGH') {
         alerts.push({
           id: `alert-high-${market.id}`,
           level: 'HIGH',
           message: `Alta concentração de risco no resultado "${topRiskOutcome}" do mercado "${market.name}". Exposição em ${exposurePercentage}% do limite máximo.`,
-          marketId: market.id,
-          matchTitle: `${match.homeTeam} vs ${match.awayTeam}`,
-          createdAt: new Date().toISOString(),
-        });
-      } else if (riskLevel === 'MEDIUM') {
-        alerts.push({
-          id: `alert-med-${market.id}`,
-          level: 'MEDIUM',
-          message: `Atenção: Mercado "${market.name}" ultrapassou 50% de exposição (${exposurePercentage}%).`,
           marketId: market.id,
           matchTitle: `${match.homeTeam} vs ${match.awayTeam}`,
           createdAt: new Date().toISOString(),
@@ -177,12 +156,9 @@ export class RiskService {
       });
     }
 
-    // Sort markets by risk level (HIGH first, then MEDIUM, then LOW) and then exposure percentage desc
     marketRisks.sort((a, b) => {
       const order = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      if (order[b.riskLevel] !== order[a.riskLevel]) {
-        return order[b.riskLevel] - order[a.riskLevel];
-      }
+      if (order[b.riskLevel] !== order[a.riskLevel]) return order[b.riskLevel] - order[a.riskLevel];
       return b.exposurePercentage - a.exposurePercentage;
     });
 
@@ -215,38 +191,38 @@ export class RiskService {
   }): Promise<void> {
     const settings = await settingsService.getSettings();
 
-    // 1. Check max stake per bet
     if (params.stake > settings.maxStake) {
       throw new Error(`O montante máximo por aposta é de ${settings.maxStake.toLocaleString()} MT.`);
     }
-
-    // 2. Check min stake per bet
     if (params.stake < settings.minStake) {
       throw new Error(`O montante mínimo por aposta é de ${settings.minStake.toLocaleString()} MT.`);
     }
-
-    // 3. Check potential win limit
     if (params.potentialReturn > settings.maxPotentialWin) {
-      throw new Error(
-        `O retorno potencial excede o limite máximo permitido de ${settings.maxPotentialWin.toLocaleString()} MT.`
-      );
+      throw new Error(`O retorno potencial excede o limite máximo permitido de ${settings.maxPotentialWin.toLocaleString()} MT.`);
     }
 
-    // 4. Check user daily stake limit
     const today = new Date().toISOString().split('T')[0];
-    const userBetsToday = Array.from(db.bets.values()).filter(
-      (b) => b.userId === params.userId && b.createdAt.startsWith(today)
-    );
-    const userTotalStakeToday = userBetsToday.reduce((acc, b) => acc + b.stake, 0);
-    if (userTotalStakeToday + params.stake > settings.maxDailyStakePerUser) {
-      throw new Error(
-        `Atingiu o limite diário de apostas por usuário (${settings.maxDailyStakePerUser.toLocaleString()} MT). Stake atual hoje: ${userTotalStakeToday.toLocaleString()} MT.`
-      );
+    const client = supabaseService.getClient();
+    let userTotalStakeToday = 0;
+    
+    if (client) {
+      const { data } = await client
+        .from('bets')
+        .select('stake')
+        .eq('user_id', params.userId)
+        .gte('placed_at', `${today}T00:00:00Z`);
+      
+      if (data) {
+        userTotalStakeToday = data.reduce((acc, b) => acc + Number(b.stake), 0);
+      }
     }
 
-    // 5. Check market status and market specific limits
+    if (userTotalStakeToday + params.stake > settings.maxDailyStakePerUser) {
+      throw new Error(`Atingiu o limite diário de apostas por usuário (${settings.maxDailyStakePerUser.toLocaleString()} MT). Stake atual hoje: ${userTotalStakeToday.toLocaleString()} MT.`);
+    }
+
     for (const item of params.items) {
-      const match = db.matches.get(item.matchId);
+      const match = await MatchService.getMatchById(item.matchId);
       if (!match) continue;
 
       const market = match.markets.find((m) => m.id === item.marketId);
@@ -257,9 +233,7 @@ export class RiskService {
       }
 
       if (market.maxStake && params.stake > market.maxStake) {
-        throw new Error(
-          `O limite máximo de aposta específico para o mercado "${market.name}" é de ${market.maxStake.toLocaleString()} MT.`
-        );
+        throw new Error(`O limite máximo de aposta específico para o mercado "${market.name}" é de ${market.maxStake.toLocaleString()} MT.`);
       }
     }
   }

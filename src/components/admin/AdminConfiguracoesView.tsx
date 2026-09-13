@@ -783,7 +783,7 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
                 <div>
                   <h3 className="text-base font-black text-white">Sincronização com Supabase Cloud</h3>
                   <p className="text-xs text-slate-400">
-                    Estado da ligação: {supabaseStatus?.configured ? '🟢 Ligado' : '🟡 Offline'}
+                    Estado da ligação: {supabaseStatus?.connected ? '🟢 Ligado' : supabaseStatus?.isConfigured ? '🟠 Configurado (Erro de Ligação)' : '🟡 Offline'}
                   </p>
                 </div>
               </div>

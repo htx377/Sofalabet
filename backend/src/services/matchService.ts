@@ -1,18 +1,131 @@
 import { db } from '../db/store.ts';
-import { Match, Market, MatchStatus } from '../types/index.ts';
+import { Match, Market, Selection } from '../types/index.ts';
 import { AuditService } from './auditService.ts';
 import { supabaseService } from '../db/supabase.ts';
 
 export class MatchService {
-  static getAllMatches(filter?: { status?: string; competitionId?: string; category?: string }): Match[] {
-    return db.getMatches(filter);
+  /**
+   * Retrieves all matches with their markets and selections from Supabase
+   */
+  static async getAllMatches(filters?: { status?: string; competitionId?: string; category?: string }): Promise<Match[]> {
+    const client = supabaseService.getClient();
+    if (client) {
+      let query = client
+        .from('matches')
+        .select(`
+          *,
+          markets (
+            *,
+            selections (*)
+          )
+        `);
+      
+      if (filters?.status) {
+        const dbStatus = filters.status === 'OPEN' ? 'PRE_MATCH' : filters.status;
+        query = query.eq('status', dbStatus);
+      }
+      if (filters?.competitionId) {
+        query = query.eq('competition_id', filters.competitionId);
+      }
+      if (filters?.category) {
+        query = query.eq('competition_category', filters.category);
+      }
+
+      const { data: matchesData, error } = await query.order('start_time', { ascending: true });
+      
+      if (!error && matchesData) {
+        return matchesData.map(m => ({
+          id: m.id,
+          competitionId: m.competition_id,
+          competitionName: m.competition_name,
+          competitionCategory: m.competition_category || 'Futebol',
+          homeTeam: m.home_team,
+          awayTeam: m.away_team,
+          kickoffDate: m.start_time.split('T')[0],
+          kickoffTime: m.start_time.split('T')[1].substring(0, 5),
+          status: m.status === 'PRE_MATCH' ? 'OPEN' : m.status,
+          homeScore: m.home_score,
+          awayScore: m.away_score,
+          isFeatured: m.is_featured,
+          markets: m.markets.map((mk: any) => ({
+            id: mk.id,
+            name: mk.name,
+            type: mk.type,
+            status: mk.status,
+            maxExposure: mk.max_exposure,
+            maxStake: mk.max_stake,
+            selections: mk.selections.map((s: any) => ({
+              id: s.id,
+              outcome: s.outcome,
+              label: s.label,
+              odds: Number(s.odds),
+              status: s.status
+            }))
+          })),
+          createdAt: m.created_at,
+          updatedAt: m.created_at
+        }));
+      }
+    }
+    return Array.from(db.matches.values());
   }
 
-  static getMatchById(id: string): Match | undefined {
-    return db.getMatch(id);
+  static async getMatchById(id: string): Promise<Match | null> {
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('matches')
+        .select(`
+          *,
+          markets (
+            *,
+            selections (*)
+          )
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (!error && data) {
+        return {
+          id: data.id,
+          competitionId: data.competition_id,
+          competitionName: data.competition_name,
+          competitionCategory: data.competition_category || 'Futebol',
+          homeTeam: data.home_team,
+          awayTeam: data.away_team,
+          kickoffDate: data.start_time.split('T')[0],
+          kickoffTime: data.start_time.split('T')[1].substring(0, 5),
+          status: data.status === 'PRE_MATCH' ? 'OPEN' : data.status,
+          homeScore: data.home_score,
+          awayScore: data.away_score,
+          isFeatured: data.is_featured,
+          markets: data.markets.map((mk: any) => ({
+            id: mk.id,
+            name: mk.name,
+            type: mk.type,
+            status: mk.status,
+            maxExposure: mk.max_exposure,
+            maxStake: mk.max_stake,
+            selections: mk.selections.map((s: any) => ({
+              id: s.id,
+              outcome: s.outcome,
+              label: s.label,
+              odds: Number(s.odds),
+              status: s.status
+            }))
+          })),
+          createdAt: data.created_at,
+          updatedAt: data.created_at
+        };
+      }
+    }
+    return db.matches.get(id) || null;
   }
 
-  static createMatch(params: {
+  /**
+   * Creates a new match and its default markets in Supabase
+   */
+  static async createMatch(params: {
     adminId: string;
     adminEmail: string;
     competitionId: string;
@@ -23,313 +136,279 @@ export class MatchService {
     description?: string;
     odds: { home: number; draw: number; away: number };
     ip?: string;
-  }): Match {
-    const { adminId, adminEmail, competitionId, homeTeam, awayTeam, kickoffDate, kickoffTime, description, odds, ip } = params;
+  }): Promise<Match> {
+    const { homeTeam, awayTeam, kickoffDate, kickoffTime, odds } = params;
 
-    const competition = db.competitions.find((c) => c.id === competitionId);
-    const compName = competition ? competition.name : 'Moçambola';
-    const compCategory = competition?.category || 'PROVINCIAL';
-
-    const matchId = `match-${Date.now()}`;
-    const marketId1X2 = `mkt-${matchId}-1`;
-    const marketIdCS = `mkt-${matchId}-cs`;
-
-    const market1X2: Market = {
-      id: marketId1X2,
-      matchId,
-      type: '1X2',
-      name: 'Resultado Final (1X2)',
-      status: 'OPEN',
-      selections: [
-        { id: `sel-${marketId1X2}-1`, marketId: marketId1X2, outcome: '1', label: homeTeam, odds: odds.home, status: 'ACTIVE' },
-        { id: `sel-${marketId1X2}-X`, marketId: marketId1X2, outcome: 'X', label: 'Empate', odds: odds.draw, status: 'ACTIVE' },
-        { id: `sel-${marketId1X2}-2`, marketId: marketId1X2, outcome: '2', label: awayTeam, odds: odds.away, status: 'ACTIVE' },
-      ],
-    };
-
-    const marketCorrectScore = MatchService.buildDefaultCorrectScoreMarket(
-      matchId,
-      marketIdCS,
-      homeTeam,
-      awayTeam,
-      odds
-    );
-
-    const newMatch: Match = {
-      id: matchId,
-      competitionId,
-      competitionName: compName,
-      competitionCategory: compCategory,
+    const match: Match = {
+      id: `m-${Date.now()}`,
+      competitionId: params.competitionId,
+      competitionName: params.description || 'Moçambola',
+      competitionCategory: 'Futebol',
       homeTeam,
       awayTeam,
       kickoffDate,
       kickoffTime,
       status: 'OPEN',
-      description,
-      markets: [market1X2, marketCorrectScore],
+      isFeatured: false,
+      markets: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    db.matches.set(matchId, newMatch);
-
-    AuditService.log(adminId, adminEmail, 'CREATE_MATCH', 'Match', matchId, undefined, newMatch, ip);
-
-    // Real-time synchronization with Supabase
-    supabaseService.syncMatchRealtime(newMatch).catch(console.error);
-
-    return newMatch;
-  }
-
-  static buildDefaultCorrectScoreMarket(
-    matchId: string,
-    marketId: string,
-    homeTeam: string,
-    awayTeam: string,
-    odds: { home: number; draw: number; away: number }
-  ): Market {
-    const bh = odds.home || 2.0;
-    const bd = odds.draw || 3.0;
-    const ba = odds.away || 3.5;
-
-    const roundOdd = (val: number, minVal: number = 3.0) =>
-      Math.max(minVal, Math.round(val * 10) / 10);
-
-    const scoreConfigs: { score: string; label: string; oddCalc: number }[] = [
-      // Home wins
-      { score: '1-0', label: `${homeTeam} 1-0`, oddCalc: roundOdd(bh * 3.2, 4.5) },
-      { score: '2-0', label: `${homeTeam} 2-0`, oddCalc: roundOdd(bh * 4.8, 6.0) },
-      { score: '2-1', label: `${homeTeam} 2-1`, oddCalc: roundOdd(bh * 5.5, 7.5) },
-      { score: '3-0', label: `${homeTeam} 3-0`, oddCalc: roundOdd(bh * 9.0, 11.0) },
-      { score: '3-1', label: `${homeTeam} 3-1`, oddCalc: roundOdd(bh * 11.0, 14.0) },
-      { score: '3-2', label: `${homeTeam} 3-2`, oddCalc: roundOdd(bh * 18.0, 22.0) },
-
-      // Draws
-      { score: '0-0', label: 'Empate 0-0', oddCalc: roundOdd(bd * 2.8, 6.5) },
-      { score: '1-1', label: 'Empate 1-1', oddCalc: roundOdd(bd * 2.0, 5.0) },
-      { score: '2-2', label: 'Empate 2-2', oddCalc: roundOdd(bd * 4.2, 12.0) },
-      { score: '3-3', label: 'Empate 3-3', oddCalc: roundOdd(bd * 10.0, 28.0) },
-
-      // Away wins
-      { score: '0-1', label: `${awayTeam} 0-1`, oddCalc: roundOdd(ba * 3.2, 5.0) },
-      { score: '0-2', label: `${awayTeam} 0-2`, oddCalc: roundOdd(ba * 4.8, 7.5) },
-      { score: '1-2', label: `${awayTeam} 1-2`, oddCalc: roundOdd(ba * 5.5, 8.5) },
-      { score: '0-3', label: `${awayTeam} 0-3`, oddCalc: roundOdd(ba * 9.0, 14.0) },
-      { score: '1-3', label: `${awayTeam} 1-3`, oddCalc: roundOdd(ba * 11.0, 16.0) },
-      { score: '2-3', label: `${awayTeam} 2-3`, oddCalc: roundOdd(ba * 18.0, 24.0) },
-
-      // Other
-      { score: 'Outro', label: 'Outro Resultado', oddCalc: 15.0 },
-    ];
-
-    return {
-      id: marketId,
-      matchId,
-      type: 'CORRECT_SCORE',
-      name: 'Resultado Correto',
+    // Create default markets
+    const mainMarket: Market = {
+      id: `mk-${Date.now()}-1`,
+      name: 'Resultado Final (1X2)',
+      type: '1X2',
       status: 'OPEN',
-      selections: scoreConfigs.map((sc, idx) => ({
-        id: `sel-${marketId}-${idx + 1}`,
-        marketId,
-        outcome: sc.score,
-        label: sc.label,
-        odds: sc.oddCalc,
-        status: 'ACTIVE',
-      })),
+      selections: [
+        { id: `s-${Date.now()}-1`, outcome: '1', label: homeTeam, odds: odds.home, status: 'ACTIVE' },
+        { id: `s-${Date.now()}-2`, outcome: 'X', label: 'Empate', odds: odds.draw, status: 'ACTIVE' },
+        { id: `s-${Date.now()}-3`, outcome: '2', label: awayTeam, odds: odds.away, status: 'ACTIVE' },
+      ],
     };
-  }
+    match.markets.push(mainMarket);
 
-  static updateMarketStatus(params: {
-    adminId: string;
-    adminEmail: string;
-    matchId: string;
-    marketId: string;
-    status: 'OPEN' | 'SUSPENDED' | 'CLOSED';
-    reason?: string;
-    ip?: string;
-  }): Market {
-    const { adminId, adminEmail, matchId, marketId, status, reason, ip } = params;
-    const match = db.matches.get(matchId);
-    if (!match) throw new Error('Jogo não encontrado');
+    // Create Correct Score Market
+    const correctScoreMarket: Market = {
+      id: `mk-${Date.now()}-cs`,
+      name: 'Resultado Correto',
+      type: 'CORRECT_SCORE',
+      status: 'OPEN',
+      maxExposure: 50000,
+      selections: this.generateDefaultCorrectScores(homeTeam, awayTeam),
+    };
+    match.markets.push(correctScoreMarket);
 
-    const market = match.markets.find((m) => m.id === marketId);
-    if (!market) throw new Error('Mercado não encontrado');
+    // Persist to Supabase
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data: mData, error: mError } = await client
+        .from('matches')
+        .insert({
+          id: match.id,
+          competition_id: match.competitionId,
+          competition_name: match.competitionName,
+          home_team: match.homeTeam,
+          away_team: match.awayTeam,
+          start_time: `${kickoffDate}T${kickoffTime}:00Z`,
+          status: 'PRE_MATCH',
+          is_featured: match.isFeatured,
+          created_at: match.createdAt
+        })
+        .select()
+        .single();
 
-    const oldStatus = market.status;
-    market.status = status;
-    match.updatedAt = new Date().toISOString();
+      if (mError) throw mError;
 
-    AuditService.log(
-      adminId,
-      adminEmail,
-      'UPDATE_MARKET_STATUS',
-      'Market',
-      market.id,
-      { status: oldStatus },
-      { status, reason, matchTitle: `${match.homeTeam} vs ${match.awayTeam}` },
-      ip
-    );
+      // Insert Markets
+      for (const market of match.markets) {
+        const { error: mkError } = await client
+          .from('markets')
+          .insert({
+            id: market.id,
+            match_id: match.id,
+            name: market.name,
+            type: market.type,
+            status: market.status,
+            max_exposure: market.maxExposure
+          });
+        
+        if (mkError) throw mkError;
 
-    supabaseService.syncMatchRealtime(match).catch(console.error);
-    return market;
-  }
+        // Insert Selections
+        const selectionsToInsert = market.selections.map(s => ({
+          id: s.id,
+          market_id: market.id,
+          outcome: s.outcome,
+          label: s.label,
+          odds: s.odds,
+          status: 'ACTIVE'
+        }));
 
-  static updateMarketOdds(params: {
-    adminId: string;
-    adminEmail: string;
-    matchId: string;
-    marketId: string;
-    selections: { selectionId: string; odds: number }[];
-    ip?: string;
-  }): Market {
-    const { adminId, adminEmail, matchId, marketId, selections, ip } = params;
-    const match = db.matches.get(matchId);
-    if (!match) throw new Error('Jogo não encontrado');
+        const { error: sError } = await client
+          .from('selections')
+          .insert(selectionsToInsert);
 
-    const market = match.markets.find((m) => m.id === marketId);
-    if (!market) throw new Error('Mercado não encontrado');
-
-    const oldOdds = market.selections.map((s) => ({ id: s.id, outcome: s.outcome, odds: s.odds }));
-
-    for (const update of selections) {
-      const sel = market.selections.find((s) => s.id === update.selectionId);
-      if (sel && update.odds >= 1.01) {
-        sel.odds = Math.round(update.odds * 100) / 100;
+        if (sError) throw sError;
       }
     }
 
-    match.updatedAt = new Date().toISOString();
+    db.matches.set(match.id, match);
+    AuditService.log(params.adminId, params.adminEmail, 'CREATE_MATCH', 'Match', match.id, null, match, params.ip);
 
-    AuditService.log(
-      adminId,
-      adminEmail,
-      'UPDATE_MARKET_ODDS',
-      'Market',
-      market.id,
-      oldOdds,
-      market.selections.map((s) => ({ id: s.id, outcome: s.outcome, odds: s.odds })),
-      ip
-    );
-
-    supabaseService.syncMatchRealtime(match).catch(console.error);
-    return market;
+    return match;
   }
 
-  static addMarketSelection(params: {
-    adminId: string;
-    adminEmail: string;
-    matchId: string;
-    marketId: string;
-    outcome: string;
-    label: string;
-    odds: number;
-    ip?: string;
-  }): Market {
-    const { adminId, adminEmail, matchId, marketId, outcome, label, odds, ip } = params;
-    const match = db.matches.get(matchId);
-    if (!match) throw new Error('Jogo não encontrado');
-
-    const market = match.markets.find((m) => m.id === marketId);
-    if (!market) throw new Error('Mercado não encontrado');
-
-    const exists = market.selections.some((s) => s.outcome === outcome);
-    if (exists) throw new Error(`Já existe uma seleção com o resultado ${outcome}`);
-
-    const newSelection = {
-      id: `sel-${market.id}-${Date.now()}`,
-      marketId: market.id,
-      outcome,
-      label,
-      odds: Math.max(1.01, Math.round(odds * 100) / 100),
-      status: 'ACTIVE' as const,
-    };
-
-    market.selections.push(newSelection);
-    match.updatedAt = new Date().toISOString();
-
-    AuditService.log(
-      adminId,
-      adminEmail,
-      'ADD_MARKET_SELECTION',
-      'Market',
-      market.id,
-      undefined,
-      newSelection,
-      ip
-    );
-
-    supabaseService.syncMatchRealtime(match).catch(console.error);
-    return market;
-  }
-
-  static updateOdds(params: {
+  static async updateOdds(params: {
     adminId: string;
     adminEmail: string;
     matchId: string;
     odds: { home: number; draw: number; away: number };
     ip?: string;
-  }): Match {
-    const { adminId, adminEmail, matchId, odds, ip } = params;
-    const match = db.matches.get(matchId);
+  }): Promise<Match> {
+    const match = await this.getMatchById(params.matchId);
     if (!match) throw new Error('Jogo não encontrado');
 
-    if (match.status === 'FINISHED' || match.status === 'CANCELLED') {
-      throw new Error(`Não é possível alterar odds de um jogo com estado ${match.status}`);
-    }
+    const mainMarket = match.markets.find((m) => m.type === '1X2');
+    if (!mainMarket) throw new Error('Mercado principal não encontrado');
 
-    const market = match.markets.find((m) => m.type === '1X2');
-    if (!market) throw new Error('Mercado 1X2 não encontrado no jogo');
+    const oldMatch = JSON.parse(JSON.stringify(match));
 
-    const oldOdds = market.selections.map((s) => ({ outcome: s.outcome, odds: s.odds }));
-
-    for (const sel of market.selections) {
-      if (sel.outcome === '1') sel.odds = odds.home;
-      if (sel.outcome === 'X') sel.odds = odds.draw;
-      if (sel.outcome === '2') sel.odds = odds.away;
-    }
-
+    mainMarket.selections.find((s) => s.outcome === '1')!.odds = params.odds.home;
+    mainMarket.selections.find((s) => s.outcome === 'X')!.odds = params.odds.draw;
+    mainMarket.selections.find((s) => s.outcome === '2')!.odds = params.odds.away;
     match.updatedAt = new Date().toISOString();
 
-    AuditService.log(adminId, adminEmail, 'UPDATE_ODDS', 'Market', market.id, oldOdds, odds, ip);
+    // Update in Supabase
+    const client = supabaseService.getClient();
+    if (client) {
+      for (const sel of mainMarket.selections) {
+        await client
+          .from('selections')
+          .update({ odds: sel.odds })
+          .eq('id', sel.id);
+      }
+    }
 
-    // Real-time synchronization with Supabase
-    supabaseService.syncMatchRealtime(match).catch(console.error);
-
+    db.matches.set(match.id, match);
+    AuditService.log(params.adminId, params.adminEmail, 'UPDATE_ODDS', 'Match', match.id, oldMatch, match, params.ip);
     return match;
   }
 
-  static updateStatus(params: {
+  static async updateStatus(params: {
     adminId: string;
     adminEmail: string;
     matchId: string;
-    status: MatchStatus;
+    status: Match['status'];
     reason?: string;
     ip?: string;
-  }): Match {
-    const { adminId, adminEmail, matchId, status, reason, ip } = params;
-    const match = db.matches.get(matchId);
+  }): Promise<Match> {
+    const match = await this.getMatchById(params.matchId);
     if (!match) throw new Error('Jogo não encontrado');
 
-    if (match.status === 'FINISHED') {
-      throw new Error('Jogo já terminado e liquidado. Não é possível alterar o estado.');
-    }
-
-    const oldStatus = match.status;
-    match.status = status;
+    const oldMatch = JSON.parse(JSON.stringify(match));
+    match.status = params.status;
     match.updatedAt = new Date().toISOString();
 
-    // Update market status accordingly
-    for (const m of match.markets) {
-      if (status === 'SUSPENDED') m.status = 'SUSPENDED';
-      else if (status === 'CLOSED') m.status = 'CLOSED';
-      else if (status === 'OPEN') m.status = 'OPEN';
+    const client = supabaseService.getClient();
+    if (client) {
+      await client
+        .from('matches')
+        .update({ status: params.status === 'OPEN' ? 'PRE_MATCH' : params.status })
+        .eq('id', params.matchId);
     }
 
-    AuditService.log(adminId, adminEmail, 'UPDATE_MATCH_STATUS', 'Match', matchId, { status: oldStatus }, { status, reason }, ip);
-
-    // Real-time synchronization with Supabase
-    supabaseService.syncMatchRealtime(match).catch(console.error);
-
+    db.matches.set(match.id, match);
+    AuditService.log(params.adminId, params.adminEmail, 'UPDATE_STATUS', 'Match', match.id, oldMatch, match, params.ip);
     return match;
+  }
+
+  static async updateMarketStatus(params: any): Promise<Market> {
+    const match = await this.getMatchById(params.matchId);
+    if (!match) throw new Error('Jogo não encontrado');
+
+    const market = match.markets.find((m) => m.id === params.marketId);
+    if (!market) throw new Error('Mercado não encontrado');
+
+    market.status = params.status;
+    
+    const client = supabaseService.getClient();
+    if (client) {
+      await client
+        .from('markets')
+        .update({ status: params.status })
+        .eq('id', params.marketId);
+    }
+
+    db.matches.set(match.id, match);
+    return market;
+  }
+
+  static async updateMarketOdds(params: any): Promise<Market> {
+    const match = await this.getMatchById(params.matchId);
+    if (!match) throw new Error('Jogo não encontrado');
+
+    const market = match.markets.find((m) => m.id === params.marketId);
+    if (!market) throw new Error('Mercado não encontrado');
+
+    const client = supabaseService.getClient();
+    for (const selUpdate of params.selections) {
+      const sel = market.selections.find((s) => s.id === selUpdate.id);
+      if (sel) {
+        sel.odds = selUpdate.odds;
+        if (client) {
+          await client.from('selections').update({ odds: sel.odds }).eq('id', sel.id);
+        }
+      }
+    }
+
+    db.matches.set(match.id, match);
+    return market;
+  }
+
+  static async addMarketSelection(params: any): Promise<Market> {
+    const match = await this.getMatchById(params.matchId);
+    if (!match) throw new Error('Jogo não encontrado');
+
+    const market = match.markets.find((m) => m.id === params.marketId);
+    if (!market) throw new Error('Mercado não encontrado');
+
+    const newSelection: Selection = {
+      id: `s-new-${Date.now()}`,
+      marketId: market.id,
+      outcome: params.outcome,
+      label: params.label,
+      odds: params.odds,
+      status: 'ACTIVE',
+    };
+
+    market.selections.push(newSelection);
+
+    const client = supabaseService.getClient();
+    if (client) {
+      await client.from('selections').insert({
+        id: newSelection.id,
+        market_id: market.id,
+        outcome: newSelection.outcome,
+        label: newSelection.label,
+        odds: newSelection.odds,
+        status: 'ACTIVE'
+      });
+    }
+
+    db.matches.set(match.id, match);
+    return market;
+  }
+
+  private static generateDefaultCorrectScores(home: string, away: string): Selection[] {
+    const baseId = `s-cs-${Date.now()}`;
+    const scores = [
+      { score: '0-0', odds: 8.0 },
+      { score: '1-0', odds: 6.5 },
+      { score: '1-1', odds: 6.0 },
+      { score: '0-1', odds: 7.5 },
+      { score: '2-0', odds: 10.0 },
+      { score: '2-1', odds: 9.0 },
+      { score: '1-2', odds: 11.0 },
+      { score: '0-2', odds: 14.0 },
+      { score: '2-2', odds: 12.0 },
+      { score: '3-0', odds: 18.0 },
+      { score: '3-1', odds: 16.0 },
+      { score: '3-2', odds: 22.0 },
+      { score: '0-3', odds: 25.0 },
+      { score: '1-3', odds: 22.0 },
+      { score: '2-3', odds: 28.0 },
+      { score: '3-3', odds: 45.0 },
+      { score: 'OTHER', odds: 15.0, label: 'Qualquer Outro' }
+    ];
+
+    return scores.map((s, idx) => ({
+      id: `${baseId}-${idx}`,
+      outcome: s.score,
+      label: s.label || s.score,
+      odds: s.odds,
+      status: 'ACTIVE'
+    }));
   }
 }

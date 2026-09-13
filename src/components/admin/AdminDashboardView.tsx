@@ -339,6 +339,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </button>
 
             <button
+              onClick={() => onNavigate('correct_score')}
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-700/70 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center justify-between transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-cyan-400" />
+                <span>📊 Gerir Resultado Correto</span>
+              </span>
+              <span className="text-[10px] text-cyan-400">Novo Mercado</span>
+            </button>
+
+            <button
               onClick={() => onNavigate('relatorios', 'diario')}
               className="w-full py-2.5 px-3 rounded-xl bg-slate-700/70 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center justify-between transition-colors"
             >

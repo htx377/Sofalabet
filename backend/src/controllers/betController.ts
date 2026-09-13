@@ -16,43 +16,43 @@ export class BetController {
       return;
     }
 
-    const { items, stake, idempotencyKey } = parseResult.data;
+    const { items, stake } = parseResult.data;
 
     try {
-      const bet = await BetService.placeBet({
+      const { bet, wallet } = await BetService.placeBet({
         userId: req.user.userId,
         items,
         stake,
-        idempotencyKey,
       });
 
       res.status(201).json({
         message: 'Aposta registada com sucesso!',
         bet,
+        wallet,
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message || 'Erro ao processar a aposta' });
     }
   }
 
-  static getUserBets(req: AuthenticatedRequest, res: Response): void {
+  static async getUserBets(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
     }
 
-    const bets = BetService.getUserBets(req.user.userId);
+    const bets = await BetService.getUserBets(req.user.userId);
     res.status(200).json({ bets });
   }
 
-  static getBetById(req: AuthenticatedRequest, res: Response): void {
+  static async getBetById(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
     }
 
     const { id } = req.params;
-    const bet = BetService.getBetById(id);
+    const bet = await BetService.getBetById(id);
     if (!bet) {
       res.status(404).json({ error: 'Aposta não encontrada' });
       return;

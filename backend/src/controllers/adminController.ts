@@ -5,6 +5,7 @@ import { db } from '../db/store.ts';
 import { MatchService } from '../services/matchService.ts';
 import { SettlementService } from '../services/settlementService.ts';
 import { WalletService } from '../services/walletService.ts';
+import { BetService } from '../services/betService.ts';
 import { AuditService } from '../services/auditService.ts';
 import {
   createMatchSchema,
@@ -19,171 +20,119 @@ import { settingsService } from '../services/settingsService.ts';
 import { RiskService } from '../services/riskService.ts';
 
 export class AdminController {
-  static getDashboardStats(req: AuthenticatedRequest, res: Response): void {
-    const totalUsers = Array.from(db.users.values()).filter((u) => u.role === 'USER').length;
-    const allMatches = Array.from(db.matches.values());
-    const activeMatches = allMatches.filter((m) => m.status === 'OPEN').length;
-    const finishedMatches = allMatches.filter((m) => m.status === 'FINISHED').length;
-
-    const allBets = Array.from(db.bets.values());
-    const pendingBets = allBets.filter((b) => b.status === 'PENDING').length;
-    const wonBets = allBets.filter((b) => b.status === 'WON').length;
-    const lostBets = allBets.filter((b) => b.status === 'LOST').length;
-    const voidBets = allBets.filter((b) => b.status === 'VOID').length;
-
-    let totalBetVolume = 0;
-    for (const b of allBets) {
-      totalBetVolume = Money.add(totalBetVolume, b.stake);
+  static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const client = supabaseService.getClient();
+    if (!client) {
+      // Fallback or error
+      res.status(503).json({ error: 'Serviço de dados indisponível' });
+      return;
     }
 
-    let totalDisbursedPayout = 0;
-    for (const b of allBets) {
-      if (b.status === 'WON') {
-        totalDisbursedPayout = Money.add(totalDisbursedPayout, b.potentialReturn);
+    try {
+      // 1. Basic counts
+      const { count: totalUsers } = await client.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'USER');
+      const { count: activeMatches } = await client.from('matches').select('*', { count: 'exact', head: true }).eq('status', 'PRE_MATCH');
+      const { count: finishedMatches } = await client.from('matches').select('*', { count: 'exact', head: true }).eq('status', 'FINISHED');
+
+      // 2. Bet stats
+      const { data: betStats } = await client.from('bets').select('status, total_stake, potential_return, created_at, settled_at');
+      const allBets = betStats || [];
+      
+      const pendingBets = allBets.filter(b => b.status === 'PENDING').length;
+      const wonBets = allBets.filter(b => b.status === 'WON').length;
+      const lostBets = allBets.filter(b => b.status === 'LOST').length;
+      const voidBets = allBets.filter(b => b.status === 'VOID').length;
+
+      let totalBetVolume = allBets.reduce((acc, b) => acc + Number(b.total_stake), 0);
+      let totalDisbursedPayout = allBets.filter(b => b.status === 'WON').reduce((acc, b) => acc + Number(b.potential_return), 0);
+
+      // 3. Financial stats from profiles (total user balance)
+      const { data: balanceData } = await client.from('profiles').select('balance');
+      const totalUsersBalance = (balanceData || []).reduce((acc, p) => acc + Number(p.balance), 0);
+
+      // 4. Transaction volumes
+      const { data: txData } = await client.from('transactions').select('*');
+      const allTransactions = txData || [];
+
+      let totalDepositsVolume = allTransactions.filter(tx => tx.type === 'DEPOSIT').reduce((acc, tx) => acc + Number(tx.amount), 0);
+      let totalWithdrawalsVolume = allTransactions.filter(tx => tx.type === 'WITHDRAWAL').reduce((acc, tx) => acc + Math.abs(Number(tx.amount)), 0);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      // Today's metrics
+      const wageredToday = allBets.filter(b => b.created_at.startsWith(todayStr)).reduce((acc, b) => acc + Number(b.total_stake), 0);
+      const paidOutToday = allBets.filter(b => b.status === 'WON' && b.settled_at?.startsWith(todayStr)).reduce((acc, b) => acc + Number(b.potential_return), 0);
+      const depositsToday = allTransactions.filter(tx => tx.type === 'DEPOSIT' && tx.created_at.startsWith(todayStr)).reduce((acc, tx) => acc + Number(tx.amount), 0);
+      const withdrawalsToday = allTransactions.filter(tx => tx.type === 'WITHDRAWAL' && tx.created_at.startsWith(todayStr)).reduce((acc, tx) => acc + Math.abs(Number(tx.amount)), 0);
+
+      const houseProfit = totalBetVolume - totalDisbursedPayout;
+      const houseProfitToday = wageredToday - paidOutToday;
+      const profitMarginPercent = totalBetVolume > 0 ? Math.round(((houseProfit / totalBetVolume) * 100) * 10) / 10 : 0;
+      const houseLiquidBalance = Math.max(0, totalDepositsVolume - totalWithdrawalsVolume);
+
+      // Daily breakdown (last 14 days)
+      const dailyMap = new Map<string, any>();
+      for (let i = 0; i < 14; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const ds = d.toISOString().split('T')[0];
+        dailyMap.set(ds, { date: ds, wagered: 0, paidOut: 0, profit: 0, betsCount: 0, deposits: 0, withdrawals: 0, newUsers: 0 });
       }
-    }
 
-    let totalBalanceMoved = 0;
-    for (const tx of db.transactions) {
-      totalBalanceMoved = Money.add(totalBalanceMoved, Math.abs(tx.amount));
-    }
-
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    // Today's metrics
-    let wageredToday = 0;
-    let betsTodayCount = 0;
-    let wonTodayCount = 0;
-    let paidOutToday = 0;
-
-    for (const b of allBets) {
-      const isToday = b.createdAt && b.createdAt.startsWith(todayStr);
-      if (isToday) {
-        wageredToday = Money.add(wageredToday, b.stake);
-        betsTodayCount++;
-      }
-      if (b.status === 'WON') {
-        const isSettledToday = (b.settledAt && b.settledAt.startsWith(todayStr)) || isToday;
-        if (isSettledToday) {
-          paidOutToday = Money.add(paidOutToday, b.potentialReturn);
-          wonTodayCount++;
+      allBets.forEach(b => {
+        const ds = b.created_at.split('T')[0];
+        if (dailyMap.has(ds)) {
+          const item = dailyMap.get(ds);
+          item.wagered += Number(b.total_stake);
+          item.betsCount++;
+          if (b.status === 'WON') item.paidOut += Number(b.potential_return);
+          item.profit = item.wagered - item.paidOut;
         }
-      }
-    }
+      });
 
-    // Deposits and withdrawals volume
-    let totalDepositsVolume = 0;
-    let totalWithdrawalsVolume = 0;
-    let depositsToday = 0;
-    let withdrawalsToday = 0;
-
-    for (const tx of db.transactions) {
-      const isToday = tx.createdAt && tx.createdAt.startsWith(todayStr);
-      if (tx.type === 'DEPOSIT') {
-        totalDepositsVolume = Money.add(totalDepositsVolume, tx.amount);
-        if (isToday) depositsToday = Money.add(depositsToday, tx.amount);
-      } else if (tx.type === 'WITHDRAWAL') {
-        const amt = Math.abs(tx.amount);
-        totalWithdrawalsVolume = Money.add(totalWithdrawalsVolume, amt);
-        if (isToday) withdrawalsToday = Money.add(withdrawalsToday, amt);
-      }
-    }
-
-    // Total balance in all user wallets
-    let totalUsersBalance = 0;
-    for (const wal of db.wallets.values()) {
-      totalUsersBalance = Money.add(totalUsersBalance, wal.balance);
-    }
-
-    // Lucro da casa (GGR = Total apostado - Total pago em prémios)
-    const houseProfit = Money.subtract(totalBetVolume, totalDisbursedPayout);
-    const houseProfitToday = Money.subtract(wageredToday, paidOutToday);
-    const profitMarginPercent = totalBetVolume > 0 ? Math.round(((houseProfit / totalBetVolume) * 100) * 10) / 10 : 0;
-
-    // Saldo da casa: Reserva operacional da casa (fundos disponíveis + retenções líquidas)
-    // House liquid vault = Net platform deposits (Deposits - Withdrawals)
-    const houseLiquidBalance = Math.max(0, Money.subtract(totalDepositsVolume, totalWithdrawalsVolume));
-
-    // Daily breakdown for last 14 days
-    const dailyMap = new Map<string, { date: string; wagered: number; paidOut: number; profit: number; betsCount: number; deposits: number; withdrawals: number; newUsers: number }>();
-    
-    // Seed last 14 days
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const ds = d.toISOString().split('T')[0];
-      dailyMap.set(ds, { date: ds, wagered: 0, paidOut: 0, profit: 0, betsCount: 0, deposits: 0, withdrawals: 0, newUsers: 0 });
-    }
-
-    for (const b of allBets) {
-      const ds = b.createdAt?.split('T')[0];
-      if (ds && dailyMap.has(ds)) {
-        const item = dailyMap.get(ds)!;
-        item.wagered = Money.add(item.wagered, b.stake);
-        item.betsCount++;
-        if (b.status === 'WON') {
-          item.paidOut = Money.add(item.paidOut, b.potentialReturn);
+      allTransactions.forEach(tx => {
+        const ds = tx.created_at.split('T')[0];
+        if (dailyMap.has(ds)) {
+          const item = dailyMap.get(ds);
+          if (tx.type === 'DEPOSIT') item.deposits += Number(tx.amount);
+          else if (tx.type === 'WITHDRAWAL') item.withdrawals += Math.abs(Number(tx.amount));
         }
-        item.profit = Money.subtract(item.wagered, item.paidOut);
-      }
+      });
+
+      const dailyReports = Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+      res.status(200).json({
+        stats: {
+          totalUsers: totalUsers || 0,
+          activeMatches: activeMatches || 0,
+          finishedMatches: finishedMatches || 0,
+          pendingBets,
+          wonBets,
+          lostBets,
+          voidBets,
+          totalBetVolume,
+          totalDisbursedPayout,
+          totalTransactions: allTransactions.length,
+          houseBalance: houseLiquidBalance,
+          totalUsersBalance,
+          wageredToday,
+          paidOutToday,
+          houseProfit,
+          houseProfitToday,
+          profitMarginPercent,
+          totalDepositsVolume,
+          totalWithdrawalsVolume,
+          depositsToday,
+          withdrawalsToday,
+          dailyReports,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao obter estatísticas' });
     }
-
-    for (const tx of db.transactions) {
-      const ds = tx.createdAt?.split('T')[0];
-      if (ds && dailyMap.has(ds)) {
-        const item = dailyMap.get(ds)!;
-        if (tx.type === 'DEPOSIT') {
-          item.deposits = Money.add(item.deposits, tx.amount);
-        } else if (tx.type === 'WITHDRAWAL') {
-          item.withdrawals = Money.add(item.withdrawals, Math.abs(tx.amount));
-        }
-      }
-    }
-
-    for (const u of db.users.values()) {
-      const ds = u.createdAt?.split('T')[0];
-      if (ds && dailyMap.has(ds)) {
-        const item = dailyMap.get(ds)!;
-        item.newUsers++;
-      }
-    }
-
-    const dailyReports = Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
-
-    res.status(200).json({
-      stats: {
-        totalUsers,
-        activeMatches,
-        finishedMatches,
-        pendingBets,
-        wonBets,
-        lostBets,
-        voidBets,
-        totalBetVolume,
-        totalDisbursedPayout,
-        totalBalanceMoved,
-        totalTransactions: db.transactions.length,
-
-        // Solicitados explicitamente na árvore:
-        houseBalance: houseLiquidBalance,
-        totalUsersBalance,
-        wageredToday,
-        paidOutToday,
-        houseProfit,
-        houseProfitToday,
-        profitMarginPercent,
-        betsTodayCount,
-        wonTodayCount,
-        totalDepositsVolume,
-        totalWithdrawalsVolume,
-        depositsToday,
-        withdrawalsToday,
-        dailyReports,
-      },
-    });
   }
 
-  static createUser(req: AuthenticatedRequest, res: Response): void {
+  static async createUser(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
@@ -254,29 +203,15 @@ export class AdminController {
 
     db.users.set(newUser.id, newUser);
 
-    // Initialize wallet
-    const newWallet = {
-      id: `wal-${Date.now()}-${newUser.id.substring(0, 8)}`,
-      userId: newUser.id,
-      balance: initBalance,
-      lockedBalance: 0,
-      updatedAt: new Date().toISOString(),
-    };
-    db.wallets.set(newUser.id, newWallet);
-
+    // Initialize wallet and persist to Supabase
+    const wallet = await WalletService.getWallet(newUser.id);
     if (initBalance > 0) {
-      db.transactions.push({
-        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-        walletId: newWallet.id,
+      await WalletService.executeTransaction({
         userId: newUser.id,
         type: 'DEPOSIT',
         amount: initBalance,
-        previousBalance: 0,
-        nextBalance: initBalance,
         reference: `CAD-ADMIN-${Date.now().toString().slice(-6)}`,
         description: `Depósito inicial concedido no registo administrativo por ${req.user.email}`,
-        status: 'COMPLETED',
-        createdAt: new Date().toISOString(),
       });
     }
 
@@ -309,7 +244,7 @@ export class AdminController {
     });
   }
 
-  static createMatch(req: AuthenticatedRequest, res: Response): void {
+  static async createMatch(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const parse = createMatchSchema.safeParse(req.body);
     if (!parse.success) {
@@ -318,7 +253,7 @@ export class AdminController {
     }
 
     try {
-      const match = MatchService.createMatch({
+      const match = await MatchService.createMatch({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         competitionId: parse.data.competitionId,
@@ -337,7 +272,7 @@ export class AdminController {
     }
   }
 
-  static updateOdds(req: AuthenticatedRequest, res: Response): void {
+  static async updateOdds(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { id } = req.params;
     const parse = updateOddsSchema.safeParse(req.body);
@@ -347,7 +282,7 @@ export class AdminController {
     }
 
     try {
-      const match = MatchService.updateOdds({
+      const match = await MatchService.updateOdds({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         matchId: id,
@@ -361,7 +296,7 @@ export class AdminController {
     }
   }
 
-  static updateMatchStatus(req: AuthenticatedRequest, res: Response): void {
+  static async updateMatchStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { id } = req.params;
     const parse = updateMatchStatusSchema.safeParse(req.body);
@@ -371,7 +306,7 @@ export class AdminController {
     }
 
     try {
-      const match = MatchService.updateStatus({
+      const match = await MatchService.updateStatus({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         matchId: id,
@@ -437,12 +372,12 @@ export class AdminController {
     }
   }
 
-  static getUsers(req: AuthenticatedRequest, res: Response): void {
+  static async getUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
     const host = req.get('host') || 'localhost:3000';
     const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
 
-    const users = Array.from(db.users.values()).map((u) => {
-      const wallet = db.wallets.get(u.id);
+    const usersPromises = Array.from(db.users.values()).map(async (u) => {
+      const wallet = await WalletService.getWallet(u.id);
       const code = u.referralCode || `ZONA${u.phone.replace(/\D/g, '').slice(-9)}`;
       const referralLink = u.referralLink || `${proto}://${host}/?ref=${code}`;
       return {
@@ -460,6 +395,7 @@ export class AdminController {
       };
     });
 
+    const users = await Promise.all(usersPromises);
     res.status(200).json({ users });
   }
 
@@ -522,24 +458,14 @@ export class AdminController {
 
     try {
       const reference = `ADJ-${Date.now()}`;
-      let outcome;
-
-      if (amount > 0) {
-        outcome = await WalletService.executeTransaction({
-          userId,
-          type: 'ADJUSTMENT',
-          amount,
-          reference,
-          description: `Ajuste manual de crédito: ${reason}`,
-        });
-      } else {
-        outcome = await WalletService.executeDebitAdjustment({
-          userId,
-          amount: Math.abs(amount),
-          reference,
-          description: `Ajuste manual de débito: ${reason}`,
-        });
-      }
+      
+      const outcome = await WalletService.executeTransaction({
+        userId,
+        type: 'ADJUSTMENT',
+        amount, // Can be positive or negative
+        reference,
+        description: amount > 0 ? `Ajuste manual de crédito: ${reason}` : `Ajuste manual de débito: ${reason}`,
+      });
 
       AuditService.log(
         req.user.userId,
@@ -573,12 +499,37 @@ export class AdminController {
     res.status(200).json({ logs });
   }
 
-  static getAllBets(req: AuthenticatedRequest, res: Response): void {
-    const bets = Array.from(db.bets.values()).reverse();
+  static async getAllBets(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const bets = await BetService.getAllBets();
     res.status(200).json({ bets });
   }
 
-  static getAllTransactions(req: AuthenticatedRequest, res: Response): void {
+  static async getAllTransactions(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('wallet_transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (!error && data) {
+        const transactions = data.map(tx => ({
+          id: tx.id,
+          userId: tx.user_id,
+          type: tx.type,
+          amount: Number(tx.amount),
+          previousBalance: Number(tx.balance_before),
+          nextBalance: Number(tx.balance_after),
+          reference: tx.reference,
+          description: tx.notes,
+          status: tx.status,
+          createdAt: tx.created_at,
+        }));
+        res.status(200).json({ transactions });
+        return;
+      }
+    }
     const transactions = [...db.transactions].reverse();
     res.status(200).json({ transactions });
   }
@@ -668,16 +619,39 @@ export class AdminController {
     });
   }
 
-  static getUserBets(req: AuthenticatedRequest, res: Response): void {
+  static async getUserBets(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { id } = req.params;
-    const userBets = Array.from(db.bets.values())
-      .filter((b) => b.userId === id)
-      .reverse();
+    const userBets = await BetService.getUserBets(id);
     res.status(200).json({ bets: userBets });
   }
 
-  static getUserTransactions(req: AuthenticatedRequest, res: Response): void {
+  static async getUserTransactions(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { id } = req.params;
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('wallet_transactions')
+        .select('*')
+        .eq('user_id', id)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        const transactions = data.map(tx => ({
+          id: tx.id,
+          userId: tx.user_id,
+          type: tx.type,
+          amount: Number(tx.amount),
+          previousBalance: Number(tx.balance_before),
+          nextBalance: Number(tx.balance_after),
+          reference: tx.reference,
+          description: tx.notes,
+          status: tx.status,
+          createdAt: tx.created_at,
+        }));
+        res.status(200).json({ transactions });
+        return;
+      }
+    }
     const userTransactions = db.transactions
       .filter((tx) => tx.userId === id)
       .reverse();
@@ -719,7 +693,7 @@ export class AdminController {
     res.status(200).json({ message: `Utilizador ${userToDelete.name} excluído com sucesso.` });
   }
 
-  static deleteMatch(req: AuthenticatedRequest, res: Response): void {
+  static async deleteMatch(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { id } = req.params;
     const match = db.matches.get(id);
@@ -735,39 +709,24 @@ export class AdminController {
 
     // Auto-void bets to allow deletion
     if (matchBets.length > 0) {
-      matchBets.forEach((bet) => {
+      for (const bet of matchBets) {
         if (bet.status === 'PENDING') {
-          // Refund user
-          const wallet = WalletService.getWallet(bet.userId);
-          const previousBalance = wallet.balance;
-          wallet.balance += bet.stake;
-          wallet.updatedAt = new Date().toISOString();
-
-          // Log transaction
-          const transactionId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-          const newTx = {
-            id: transactionId,
-            walletId: wallet.id,
+          // Refund user using WalletService
+          await WalletService.executeTransaction({
             userId: bet.userId,
-            type: 'REFUND' as const,
+            type: 'REFUND',
             amount: bet.stake,
-            previousBalance,
-            nextBalance: wallet.balance,
             reference: bet.id,
             description: `Reembolso por cancelamento/exclusão do Jogo (Aposta #${bet.id})`,
-            status: 'COMPLETED' as const,
-            createdAt: new Date().toISOString(),
-          };
-          db.transactions.push(newTx);
+          });
 
           // Void the bet
           bet.status = 'VOID';
           bet.settledAt = new Date().toISOString();
           
-          supabaseService.syncWalletRealtime(wallet).catch(console.error);
-          supabaseService.syncTransactionRealtime(newTx).catch(console.error);
+          supabaseService.syncBetRealtime(bet).catch(console.error);
         }
-      });
+      }
     }
 
     db.matches.delete(id);
@@ -887,7 +846,7 @@ export class AdminController {
     }
   }
 
-  static updateMarketStatus(req: AuthenticatedRequest, res: Response): void {
+  static async updateMarketStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { matchId, marketId } = req.params;
     const { status, reason } = req.body;
@@ -898,7 +857,7 @@ export class AdminController {
     }
 
     try {
-      const market = MatchService.updateMarketStatus({
+      const market = await MatchService.updateMarketStatus({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         matchId,
@@ -913,7 +872,7 @@ export class AdminController {
     }
   }
 
-  static updateMarketOdds(req: AuthenticatedRequest, res: Response): void {
+  static async updateMarketOdds(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { matchId, marketId } = req.params;
     const { selections } = req.body;
@@ -924,7 +883,7 @@ export class AdminController {
     }
 
     try {
-      const market = MatchService.updateMarketOdds({
+      const market = await MatchService.updateMarketOdds({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         matchId,
@@ -938,7 +897,7 @@ export class AdminController {
     }
   }
 
-  static addMarketSelection(req: AuthenticatedRequest, res: Response): void {
+  static async addMarketSelection(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { matchId, marketId } = req.params;
     const { outcome, label, odds } = req.body;
@@ -949,7 +908,7 @@ export class AdminController {
     }
 
     try {
-      const market = MatchService.addMarketSelection({
+      const market = await MatchService.addMarketSelection({
         adminId: req.user.userId,
         adminEmail: req.user.email,
         matchId,

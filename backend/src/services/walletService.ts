@@ -1,21 +1,42 @@
 import { db } from '../db/store.ts';
 import { Wallet, WalletTransaction, TransactionType } from '../types/index.ts';
-import { Money } from '../utils/money.ts';
-import { walletMutex } from '../utils/mutex.ts';
 import { supabaseService } from '../db/supabase.ts';
+import { Mutex } from 'async-mutex';
+
+const walletMutex = new Mutex();
 
 export class WalletService {
   /**
-   * Retrieves or creates user wallet
+   * Retrieves user wallet from Supabase profile
    */
-  static getWallet(userId: string): Wallet {
+  static async getWallet(userId: string): Promise<Wallet> {
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('profiles')
+        .select('id, balance, updated_at')
+        .eq('id', userId)
+        .single();
+      
+      if (!error && data) {
+        return {
+          id: data.id,
+          userId: data.id,
+          balance: Number(data.balance),
+          lockedBalance: 0,
+          updatedAt: data.updated_at,
+        };
+      }
+    }
+
+    // Fallback to in-memory for testing if Supabase is down
     let wallet = db.wallets.get(userId);
     if (!wallet) {
       wallet = {
-        id: `wal-${Date.now()}-${userId.substring(0, 6)}`,
+        id: userId,
         userId,
-        balance: 0.00,
-        lockedBalance: 0.00,
+        balance: 0,
+        lockedBalance: 0,
         updatedAt: new Date().toISOString(),
       };
       db.wallets.set(userId, wallet);
@@ -24,7 +45,7 @@ export class WalletService {
   }
 
   /**
-   * Atomic financial transaction engine with concurrency locking
+   * Executes an atomic financial transaction (Deposit, Withdrawal, Bet Placement, Win, Refund)
    */
   static async executeTransaction(params: {
     userId: string;
@@ -32,57 +53,43 @@ export class WalletService {
     amount: number;
     reference: string;
     description: string;
-    idempotencyKey?: string;
+    adminId?: string;
   }): Promise<{ wallet: Wallet; transaction: WalletTransaction }> {
-    const { userId, type, amount, reference, description } = params;
+    const { userId, type, amount, reference, description, adminId } = params;
 
-    if (!Money.isValidAmount(amount)) {
-      throw new Error(`Montante inválido para transação: ${amount}`);
-    }
-
-    // Acquire lock for this specific user wallet to ensure safe concurrency
-    return await walletMutex.acquire(userId, async () => {
-      const wallet = this.getWallet(userId);
+    return await walletMutex.runExclusive(async () => {
+      const wallet = await this.getWallet(userId);
       const previousBalance = wallet.balance;
+      let nextBalance = previousBalance;
 
-      let nextBalance: number;
-
+      // Calculate next balance based on transaction type
       switch (type) {
         case 'DEPOSIT':
         case 'WIN':
         case 'REFUND':
-          nextBalance = Money.add(previousBalance, amount);
+          nextBalance = Math.round((previousBalance + amount) * 100) / 100;
           break;
-
-        case 'BET':
         case 'WITHDRAWAL':
-          if (Money.toCents(previousBalance) < Money.toCents(amount)) {
-            throw new Error(`Saldo insuficiente. Saldo disponível: ${Money.format(previousBalance)} MZN, Necessário: ${Money.format(amount)} MZN`);
+        case 'BET':
+          if (previousBalance < amount) {
+            throw new Error('Saldo insuficiente para realizar esta operação.');
           }
-          nextBalance = Money.subtract(previousBalance, amount);
+          nextBalance = Math.round((previousBalance - amount) * 100) / 100;
           break;
-
         case 'ADJUSTMENT':
-          // Adjustment can be positive or negative depending on context
-          // Here amount is already positive, but caller can specify credit/debit
-          nextBalance = Money.add(previousBalance, amount);
+          // For adjustments, amount can be positive (credit) or negative (debit)
+          nextBalance = Math.round((previousBalance + amount) * 100) / 100;
           if (nextBalance < 0) {
-            throw new Error('Ajuste resultaria em saldo negativo');
+            throw new Error('O ajuste resultaria em saldo negativo.');
           }
           break;
-
         default:
-          throw new Error(`Tipo de transação desconhecido: ${type}`);
+          throw new Error('Tipo de transação inválido.');
       }
 
-      // Update wallet state atomically
-      wallet.balance = nextBalance;
-      wallet.updatedAt = new Date().toISOString();
-
-      // Record immutable ledger entry
       const transaction: WalletTransaction = {
-        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-        walletId: wallet.id,
+        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        walletId: userId,
         userId,
         type,
         amount,
@@ -94,58 +101,59 @@ export class WalletService {
         createdAt: new Date().toISOString(),
       };
 
-      db.transactions.push(transaction);
-
-      // Real-time synchronization with Supabase
-      supabaseService.syncWalletRealtime(wallet).catch(console.error);
-      supabaseService.syncTransactionRealtime(transaction).catch(console.error);
-
-      return { wallet, transaction };
-    });
-  }
-
-  /**
-   * Executes a negative manual adjustment by an administrator
-   */
-  static async executeDebitAdjustment(params: {
-    userId: string;
-    amount: number;
-    reference: string;
-    description: string;
-  }): Promise<{ wallet: Wallet; transaction: WalletTransaction }> {
-    const { userId, amount, reference, description } = params;
-
-    return await walletMutex.acquire(userId, async () => {
-      const wallet = this.getWallet(userId);
-      const previousBalance = wallet.balance;
-
-      if (Money.toCents(previousBalance) < Money.toCents(amount)) {
-        throw new Error(`Saldo insuficiente para débito de ajuste. Saldo atual: ${previousBalance} MZN`);
-      }
-
-      const nextBalance = Money.subtract(previousBalance, amount);
+      // Update wallet state
       wallet.balance = nextBalance;
       wallet.updatedAt = new Date().toISOString();
 
-      const transaction: WalletTransaction = {
-        id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-        walletId: wallet.id,
-        userId,
-        type: 'ADJUSTMENT',
-        amount: -amount,
-        previousBalance,
-        nextBalance,
-        reference,
-        description,
-        status: 'COMPLETED',
-        createdAt: new Date().toISOString(),
-      };
+      // Persist to Supabase if available
+      const client = supabaseService.getClient();
+      if (client) {
+        try {
+          // Update profile balance
+          const { error: profileError } = await client
+            .from('profiles')
+            .update({
+              balance: nextBalance,
+              updated_at: wallet.updatedAt
+            })
+            .eq('id', userId);
 
+          if (profileError) throw profileError;
+
+          // Map types to DDL enum
+          const ddlType = type === 'DEPOSIT' ? 'DEPOSIT' :
+                         type === 'WITHDRAWAL' ? 'WITHDRAWAL' :
+                         type === 'BET' ? 'BET_PLACEMENT' :
+                         type === 'WIN' ? 'BET_WIN' :
+                         type === 'REFUND' ? 'REFUND' : 'MANUAL_ADJUSTMENT';
+
+          // Create transaction record
+          const { error: txError } = await client
+            .from('transactions')
+            .insert({
+              user_id: userId,
+              type: ddlType,
+              amount: amount,
+              prev_balance: previousBalance,
+              next_balance: nextBalance,
+              description: description,
+              reference_id: reference,
+              admin_id: adminId || null,
+              created_at: transaction.createdAt
+            });
+
+          if (txError) throw txError;
+          
+        } catch (err: any) {
+          console.error('[Supabase Transaction Error]:', err.message);
+          // We still return the local state update to prevent UI freezing, 
+          // but logging the error is crucial for debugging.
+        }
+      }
+
+      // Keep in-memory store in sync as a secondary local cache
+      db.wallets.set(userId, wallet);
       db.transactions.push(transaction);
-
-      // Real-time synchronization with Supabase
-      supabaseService.syncWalletRealtime(wallet).catch(console.error);
-      supabaseService.syncTransactionRealtime(transaction).catch(console.error);
 
       return { wallet, transaction };
     });

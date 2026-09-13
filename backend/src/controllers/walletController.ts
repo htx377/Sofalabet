@@ -9,13 +9,13 @@ import { supabaseService } from '../db/supabase.ts';
 import { settingsService } from '../services/settingsService.ts';
 
 export class WalletController {
-  static getWallet(req: AuthenticatedRequest, res: Response): void {
+  static async getWallet(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
     }
 
-    const wallet = WalletService.getWallet(req.user.userId);
+    const wallet = await WalletService.getWallet(req.user.userId);
     res.status(200).json({
       wallet: {
         id: wallet.id,
@@ -26,10 +26,36 @@ export class WalletController {
     });
   }
 
-  static getTransactions(req: AuthenticatedRequest, res: Response): void {
+  static async getTransactions(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
+    }
+
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('wallet_transactions')
+        .select('*')
+        .eq('user_id', req.user.userId)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        const transactions = data.map(tx => ({
+          id: tx.id,
+          userId: tx.user_id,
+          type: tx.type,
+          amount: Number(tx.amount),
+          previousBalance: Number(tx.balance_before),
+          nextBalance: Number(tx.balance_after),
+          reference: tx.reference,
+          description: tx.notes,
+          status: tx.status,
+          createdAt: tx.created_at,
+        }));
+        res.status(200).json({ transactions });
+        return;
+      }
     }
 
     const transactions = db.getTransactions(req.user.userId);
@@ -157,7 +183,7 @@ export class WalletController {
       return;
     }
 
-    const wallet = WalletService.getWallet(req.user.userId);
+    const wallet = await WalletService.getWallet(req.user.userId);
     if (wallet.balance < amount) {
       res.status(400).json({
         error: `Saldo insuficiente. O seu saldo disponível é de ${wallet.balance.toFixed(2)} MT.`,
@@ -247,6 +273,36 @@ export class WalletController {
     if (!req.user) {
       res.status(401).json({ error: 'Não autenticado' });
       return;
+    }
+    const client = supabaseService.getClient();
+    if (client) {
+      const { data, error } = await client
+        .from('deposit_proofs')
+        .select('*')
+        .eq('user_id', req.user.userId)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        const proofs = data.map(p => ({
+          id: p.id,
+          userId: p.user_id,
+          userName: p.user_name,
+          userPhone: p.user_phone,
+          amount: Number(p.amount),
+          method: p.method,
+          referenceCode: p.reference_code,
+          operatorTxId: p.operator_tx_id,
+          receiptDataUrl: p.receipt_data_url,
+          receiptFileName: p.receipt_file_name,
+          notes: p.notes,
+          status: p.status,
+          reviewNotes: p.review_notes,
+          createdAt: p.created_at,
+          updatedAt: p.reviewed_at || p.created_at,
+        }));
+        res.status(200).json({ proofs });
+        return;
+      }
     }
     const proofs = db.getDepositProofs(req.user.userId);
     res.status(200).json({ proofs });

@@ -77,7 +77,7 @@ export interface DepositProof {
 }
 
 export type MatchStatus = 'DRAFT' | 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'FINISHED' | 'CANCELLED';
-export type CompetitionCategory = 'MOCAMBOLA' | 'PROVINCIAL' | 'DISTRITAL';
+export type CompetitionCategory = 'MOCAMBOLA' | 'PROVINCIAL' | 'DISTRITAL' | 'Futebol' | string;
 
 export interface Competition {
   id: string;
@@ -95,7 +95,7 @@ export interface Team {
 
 export interface Selection {
   id: string;
-  marketId: string;
+  marketId?: string;
   outcome: '1' | 'X' | '2' | string;
   label: string;
   odds: number;
@@ -106,7 +106,7 @@ export type MarketType = '1X2' | 'CORRECT_SCORE' | string;
 
 export interface Market {
   id: string;
-  matchId: string;
+  matchId?: string;
   type: MarketType;
   name: string;
   status: 'OPEN' | 'SUSPENDED' | 'CLOSED' | 'SETTLED';
@@ -128,6 +128,7 @@ export interface Match {
   status: MatchStatus;
   homeScore?: number | null;
   awayScore?: number | null;
+  isFeatured?: boolean;
   description?: string;
   markets: Market[];
   createdAt: string;
@@ -149,6 +150,7 @@ export interface BetItem {
   selectionId: string;
   outcome: '1' | 'X' | '2' | string;
   oddsAtBetTime: number;
+  label: string;
   status: 'PENDING' | 'WON' | 'LOST' | 'VOID';
 }
 

@@ -23,6 +23,7 @@ import { AdminFinanceiroView } from './admin/AdminFinanceiroView.tsx';
 import { AdminRelatoriosView } from './admin/AdminRelatoriosView.tsx';
 import { AdminConfiguracoesView } from './admin/AdminConfiguracoesView.tsx';
 import { AdminRiscoView } from './admin/AdminRiscoView.tsx';
+import { AdminCorrectScoreView } from './admin/AdminCorrectScoreView.tsx';
 import {
   Shield,
   Plus,
@@ -70,6 +71,7 @@ export type AdminSection =
   | 'apostas'
   | 'financeiro'
   | 'risco'
+  | 'correct_score'
   | 'relatorios'
   | 'configuracoes';
 
@@ -676,6 +678,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             count: riskOverview?.highRiskCount || null,
             isAlert: !!riskOverview && riskOverview.highRiskCount > 0,
           },
+          { id: 'correct_score', label: '📊 RESULTADO CORRETO', count: null },
           { id: 'relatorios', label: '📊 RELATÓRIOS', count: null },
           { id: 'configuracoes', label: '⚙️ CONFIGURAÇÕES', count: null },
         ].map((tab) => {
@@ -809,6 +812,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             onRefresh={loadRiskData}
             onToggleMarketStatus={handleToggleMarketStatus}
             onUpdateRiskSettings={handleUpdateRiskSettings}
+          />
+        )}
+
+        {/* 6.5 📊 RESULTADO CORRETO */}
+        {section === 'correct_score' && (
+          <AdminCorrectScoreView
+            matches={matches}
+            onRefresh={loadData}
           />
         )}
 

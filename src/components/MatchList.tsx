@@ -70,10 +70,13 @@ export const MatchList: React.FC = () => {
       }, 3000);
 
       // Atualizar odds de seleções que estejam abertas no boletim de apostas
-      const market = updatedMatch.markets?.find((m) => m.type === '1X2');
-      if (market && market.selections) {
-        for (const sel of market.selections) {
-          updateSelectionOdds(updatedMatch.id, sel.id, sel.odds);
+      if (updatedMatch.markets) {
+        for (const market of updatedMatch.markets) {
+          if (market.selections) {
+            for (const sel of market.selections) {
+              updateSelectionOdds(updatedMatch.id, sel.id, sel.odds);
+            }
+          }
         }
       }
 
