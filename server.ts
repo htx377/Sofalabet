@@ -23,11 +23,11 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SofalaBet] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[ZONABET] Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('[SofalaBet] Failed to start server:', err);
+  console.error('[ZONABET] Failed to start server:', err);
   process.exit(1);
 });
