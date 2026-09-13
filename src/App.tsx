@@ -11,6 +11,7 @@ import { WalletActionModal } from './components/WalletActionModal.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
 import { SecretAdminModal } from './components/SecretAdminModal.tsx';
 import { WhatsAppButton } from './components/WhatsAppButton.tsx';
+import { PWAInstallButton } from './components/PWAInstallButton.tsx';
 import { SystemSettings } from './types.ts';
 import { Shield, Flame, Wallet as WalletIcon, Trophy, Ticket, User as UserIcon, ArrowDownLeft, ArrowUpRight, CheckCircle2, History, AlertCircle, Bell } from 'lucide-react';
 import { subscribeToSettlement } from './utils/settlementEvents.ts';
@@ -405,6 +406,9 @@ function MainLayout() {
 
       {/* Floating WhatsApp Support Button */}
       <WhatsAppButton settings={appSettings?.whatsapp} />
+
+      {/* PWA Install Button for Mobile/Desktop Installation */}
+      <PWAInstallButton />
 
     </div>
   );
