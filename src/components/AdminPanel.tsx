@@ -524,6 +524,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     }
   };
 
+  const handleResetAllBalances = async () => {
+    setLoading(true);
+    try {
+      const res = await api.resetAllBalances();
+      notifySuccess(res.message);
+      await loadData();
+    } catch (err: any) {
+      notifyError(err.message || 'Erro ao realizar limpeza de saldos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredMatches = matches.filter((m) => {
     const term = matchSearch.toLowerCase().trim();
     const matchesQuery =
@@ -844,6 +857,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             handleSyncToSupabase={handleSyncToSupabase}
             handlePullFromSupabase={handlePullFromSupabase}
             handleCopySql={handleCopySql}
+            onResetAllBalances={handleResetAllBalances}
           />
         )}
       </div>

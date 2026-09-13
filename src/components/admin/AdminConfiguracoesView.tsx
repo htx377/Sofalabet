@@ -35,6 +35,7 @@ interface AdminConfiguracoesViewProps {
   handleSyncToSupabase: () => Promise<void>;
   handlePullFromSupabase: () => Promise<void>;
   handleCopySql: () => Promise<void>;
+  onResetAllBalances: () => Promise<void>;
 }
 
 export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
@@ -51,9 +52,10 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
   handleSyncToSupabase,
   handlePullFromSupabase,
   handleCopySql,
+  onResetAllBalances,
 }) => {
   const [subTab, setSubTab] = useState<
-    'taxa' | 'limites' | 'whatsapp' | 'contas' | 'auditoria' | 'supabase'
+    'taxa' | 'limites' | 'whatsapp' | 'contas' | 'auditoria' | 'supabase' | 'manutencao'
   >('taxa');
 
   // Form states initialized from settings prop
@@ -195,6 +197,7 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
             {subTab === 'contas' && 'Canais de Pagamento & e-Mola'}
             {subTab === 'auditoria' && `Registo Central de Auditoria (${auditLogs.length})`}
             {subTab === 'supabase' && 'Supabase Cloud & Base de Dados'}
+            {subTab === 'manutencao' && 'Manutenção & Limpeza do Sistema'}
           </span>
         </div>
 
@@ -270,6 +273,18 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
           >
             <Database className="w-3.5 h-3.5" />
             <span>Supabase Cloud</span>
+          </button>
+
+          <button
+            onClick={() => setSubTab('manutencao')}
+            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
+              subTab === 'manutencao'
+                ? 'bg-rose-600 text-white shadow'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-750 border border-slate-700'
+            }`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Manutenção</span>
           </button>
         </div>
       </div>
@@ -823,6 +838,75 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
               <pre className="p-3 bg-slate-950 rounded-lg text-[11px] text-slate-400 font-mono max-h-40 overflow-y-auto">
                 {supabaseSchemaSql}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUB-TAB 7: MANUTENÇÃO ================= */}
+      {subTab === 'manutencao' && (
+        <div className="max-w-2xl mx-auto space-y-5">
+          <div className="p-6 bg-slate-800/80 border border-slate-700/80 rounded-2xl space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-700">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Limpeza de Dinheiro Virtual</h3>
+                <p className="text-xs text-slate-400">
+                  Esta ação irá resetar o saldo de <strong>TODOS</strong> os jogadores para 0.00 MT.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-rose-950/20 border border-rose-500/30 rounded-xl space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-rose-200 space-y-1">
+                  <p className="font-bold uppercase tracking-wider text-rose-300">⚠️ Ação Irreversível</p>
+                  <p>Ao confirmar, todos os saldos atuais no sistema (Supabase e In-Memory) serão zerados.</p>
+                  <p>Um registo de auditoria será criado para esta operação global.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  if (window.confirm('TEM A CERTEZA? Esta ação irá apagar o saldo de TODOS os jogadores do sistema permanentemente.')) {
+                    onResetAllBalances();
+                  }
+                }}
+                className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-rose-900/20 transition-all active:scale-[0.98]"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>EXECUTAR LIMPEZA GLOBAL DE SALDOS</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 bg-slate-800/80 border border-slate-700/80 rounded-2xl space-y-4">
+             <div className="flex items-center gap-3 pb-3 border-b border-slate-700">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Estado dos Volumes de Dados</h3>
+                <p className="text-xs text-slate-400">
+                  Resumo técnico dos registos financeiros atualmente em memória.
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 text-xs">
+               <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                  <span className="text-slate-400 block mb-1">Transações Totais:</span>
+                  <span className="text-white font-mono font-bold"># {auditLogs.length} registos</span>
+               </div>
+               <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                  <span className="text-slate-400 block mb-1">Receita de Taxas:</span>
+                  <span className="text-emerald-400 font-mono font-bold">{totalFeeCollected.toFixed(2)} MT</span>
+               </div>
             </div>
           </div>
         </div>

@@ -805,6 +805,32 @@ export class AdminController {
     });
   }
 
+  static async resetAllBalances(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) return;
+
+    try {
+      const { affectedRows } = await WalletService.resetAllBalances(req.user.userId, req.user.email);
+
+      AuditService.log(
+        req.user.userId,
+        req.user.email,
+        'RESET_ALL_BALANCES',
+        'System',
+        'Global',
+        {},
+        { affectedUsers: affectedRows, reason: 'Limpeza de Dinheiro Virtual' },
+        req.ip
+      );
+
+      res.status(200).json({
+        message: `Limpeza de Dinheiro Virtual concluída. ${affectedRows} saldos de jogadores foram resetados para 0.00 MT.`,
+        affectedRows,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Erro ao realizar limpeza de saldos' });
+    }
+  }
+
   static async getSettings(req: AuthenticatedRequest, res: Response): Promise<void> {
     const settings = await settingsService.getSettings();
     res.status(200).json({ settings });

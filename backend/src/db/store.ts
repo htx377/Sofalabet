@@ -185,7 +185,7 @@ class DatabaseStore {
     const superAdminWallet: Wallet = {
       id: 'wal-superadmin-01',
       userId: superAdminUser.id,
-      balance: 1000000,
+      balance: 0.00,
       lockedBalance: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -210,7 +210,7 @@ class DatabaseStore {
     const admin2Wallet: Wallet = {
       id: 'wal-superadmin-02',
       userId: admin2User.id,
-      balance: 1000000,
+      balance: 0.00,
       lockedBalance: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -232,7 +232,7 @@ class DatabaseStore {
     this.wallets.set(userAdminAccount.id, {
       id: 'wal-superadmin-03',
       userId: userAdminAccount.id,
-      balance: 1000000,
+      balance: 0.00,
       lockedBalance: 0,
       updatedAt: new Date().toISOString(),
     });
@@ -256,7 +256,7 @@ class DatabaseStore {
     const testWallet: Wallet = {
       id: 'wal-test-01',
       userId: testUser.id,
-      balance: 1000000.00, // 1 000 000,00 MZN
+      balance: 0.00,
       lockedBalance: 0,
       updatedAt: new Date().toISOString(),
     };

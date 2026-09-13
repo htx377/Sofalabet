@@ -163,6 +163,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  resetAllBalances: () =>
+    request<{ message: string; affectedRows: number }>('/admin/users/reset-all-balances', {
+      method: 'POST',
+    }),
   getAdminAuditLogs: () => request<{ logs: any[] }>('/admin/audit-logs'),
   getAdminBets: () => request<{ bets: any[] }>('/admin/bets'),
   getAdminTransactions: () => request<{ transactions: any[] }>('/admin/transactions'),
