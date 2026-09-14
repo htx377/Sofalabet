@@ -858,6 +858,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             handlePullFromSupabase={handlePullFromSupabase}
             handleCopySql={handleCopySql}
             onResetAllBalances={handleResetAllBalances}
+            onRefreshSupabaseStatus={fetchSupabaseInfo}
           />
         )}
       </div>

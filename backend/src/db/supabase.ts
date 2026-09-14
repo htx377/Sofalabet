@@ -26,12 +26,17 @@ class SupabaseService {
   }
 
   public init() {
-    this.url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || null;
-    this.key =
+    const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || null;
+    this.url = rawUrl
+      ? rawUrl.trim().replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '')
+      : null;
+
+    const rawKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.SUPABASE_ANON_KEY ||
       process.env.VITE_SUPABASE_ANON_KEY ||
       null;
+    this.key = rawKey ? rawKey.trim() : null;
 
     if (this.url && this.key && this.url.startsWith('http')) {
       try {
@@ -78,7 +83,7 @@ class SupabaseService {
     }
 
     try {
-      const { error } = await this.client.from('profiles').select('id', { count: 'exact', head: true });
+      const { error } = await this.client.from('profiles').select('id').limit(1);
       if (error) {
         return {
           isConfigured: true,
@@ -88,7 +93,9 @@ class SupabaseService {
           url: this.url,
           hasServiceKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
           hasAnonKey: Boolean(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
-          error: `Erro ao aceder à tabela 'profiles': ${error.message}.`,
+          error: error.message.includes('not find') || error.code === 'PGRST205'
+            ? 'As tabelas ainda não foram criadas no Supabase. Por favor, execute o script SQL DDL no SQL Editor do Supabase.'
+            : `Erro ao aceder à tabela 'profiles': ${error.message}.`,
         };
       }
 
@@ -191,6 +198,36 @@ class SupabaseService {
         away_score: match.awayScore ?? 0,
         created_at: match.createdAt,
       }, { onConflict: 'id' });
+
+      // Sync markets and selections if present
+      if (match.markets && match.markets.length > 0) {
+        for (const market of match.markets) {
+          await this.client.from('markets').upsert({
+            id: market.id,
+            match_id: match.id,
+            name: market.name,
+            type: market.type,
+            status: market.status,
+            max_exposure: market.maxExposure ?? null,
+            max_stake: market.maxStake ?? null,
+            created_at: match.createdAt,
+          }, { onConflict: 'id' });
+
+          if (market.selections && market.selections.length > 0) {
+            const selectionsData = market.selections.map((sel) => ({
+              id: sel.id,
+              market_id: market.id,
+              outcome: sel.outcome,
+              label: sel.label,
+              odds: sel.odds,
+              status: sel.status,
+              result: sel.status === 'SETTLED_WIN' ? 'WIN' : sel.status === 'SETTLED_LOST' ? 'LOSS' : sel.status === 'VOID' ? 'VOID' : 'PENDING',
+              created_at: match.createdAt,
+            }));
+            await this.client.from('selections').upsert(selectionsData, { onConflict: 'id' });
+          }
+        }
+      }
     } catch (err) {
       console.warn('[Supabase Sync] Erro ao sincronizar jogo:', err);
     }
@@ -264,13 +301,28 @@ class SupabaseService {
         id: proof.id,
         user_id: proof.userId,
         amount: proof.amount,
+        fee: 0.00,
+        net_amount: proof.amount,
         method: proof.method,
+        account_number: proof.referenceCode || '',
         status: proof.status === 'APPROVED' ? 'COMPLETED' : proof.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
-        pix_key: proof.referenceCode, // using referenceCode as pix_key placeholder if needed
         created_at: proof.createdAt,
       }, { onConflict: 'id' });
     } catch (err) {
       console.warn('[Supabase Sync] Erro ao sincronizar comprovativo:', err);
+    }
+  }
+
+  public async syncSettingsRealtime(settings: any): Promise<void> {
+    if (!this.client) return;
+    try {
+      await this.client.from('system_settings').upsert({
+        id: 'default',
+        config: settings,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('[Supabase Sync] Erro ao sincronizar configurações:', err);
     }
   }
 
@@ -280,10 +332,10 @@ class SupabaseService {
     const results = {
       users: 0,
       matches: 0,
-      bets: 0
+      bets: 0,
+      settings: 0,
     };
 
-    // Very basic migration logic
     for (const user of dbStore.users.values()) {
       await this.syncUserRealtime(user);
       results.users++;
@@ -296,15 +348,54 @@ class SupabaseService {
       await this.syncBetRealtime(bet);
       results.bets++;
     }
+    if (dbStore.settings) {
+      await this.syncSettingsRealtime(dbStore.settings);
+      results.settings = 1;
+    }
 
     return { success: true, results };
   }
 
-  public async pullDataFromSupabase(): Promise<{ success: boolean }> {
-    // This is a complex operation that would overwrite local data with Supabase data
-    // For now, let's just mark it as not implemented or do a basic version if needed
-    console.log('[Supabase] Pull data requested but not fully implemented to avoid data loss.');
-    return { success: true };
+  public async pullDataFromSupabase(): Promise<{ success: boolean; results?: any }> {
+    if (!this.client) throw new Error('Supabase client não está inicializado.');
+    
+    const results = { users: 0, matches: 0, settings: 0 };
+    try {
+      // 1. Fetch profiles
+      const { data: profiles, error: pErr } = await this.client.from('profiles').select('*');
+      if (!pErr && profiles && profiles.length > 0) {
+        for (const p of profiles) {
+          const existing = dbStore.users.get(p.id);
+          if (existing) {
+            existing.name = p.name || existing.name;
+            existing.role = p.role || existing.role;
+            existing.isBlocked = p.status === 'BLOCKED';
+            const wallet = dbStore.wallets.get(p.id);
+            if (wallet) {
+              wallet.balance = Number(p.balance) || 0;
+            }
+          }
+          results.users++;
+        }
+      }
+
+      // 2. System settings
+      const { data: settingsData } = await this.client
+        .from('system_settings')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle();
+
+      if (settingsData && settingsData.config) {
+        dbStore.settings = { ...dbStore.settings, ...settingsData.config };
+        results.settings = 1;
+      }
+
+      return { success: true, results };
+    } catch (err: any) {
+      console.error('[Supabase Pull] Erro ao importar dados:', err);
+      return { success: false, results };
+    }
   }
 }
 

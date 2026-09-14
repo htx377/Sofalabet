@@ -1,7 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const supabaseUrl = rawUrl
+  ? String(rawUrl).trim().replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '')
+  : undefined;
+const supabaseAnonKey = rawKey ? String(rawKey).trim() : undefined;
 
 let client: SupabaseClient | null = null;
 
