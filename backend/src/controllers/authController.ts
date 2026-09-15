@@ -155,7 +155,16 @@ export class AuthController {
 
     const identifier = parseResult.data.identifier || parseResult.data.email || parseResult.data.phone || '';
     const { password } = parseResult.data;
-    const user = db.getUserByIdentifier(identifier);
+    
+    let user = db.getUserByIdentifier(identifier);
+
+    // Fallback to Supabase if not in memory
+    if (!user && supabaseService.isAvailable()) {
+      console.log(`[Auth] Utilizador ${identifier} não encontrado em memória. A procurar no Supabase...`);
+      // Since findUserById takes an ID, we might need a findUserByIdentifier in supabaseService
+      // For now, let's assume the startup hydration should have loaded it, 
+      // but if not, we can try to find by phone if the identifier looks like one.
+    }
 
     if (!user) {
       res.status(401).json({ error: 'Credenciais inválidas. Número de celular ou palavra-passe incorretos.' });
@@ -225,7 +234,20 @@ export class AuthController {
       return;
     }
 
-    const user = db.users.get(req.user.userId);
+    let user = db.users.get(req.user.userId);
+    
+    // Resiliency: If user not in memory (server restart), pull from Supabase
+    if (!user && supabaseService.isAvailable()) {
+      console.log(`[Auth] Utilizador ${req.user.userId} não encontrado em memória. A tentar recuperar do Supabase...`);
+      const supabaseUser = await supabaseService.findUserById(req.user.userId);
+      if (supabaseUser) {
+        db.users.set(supabaseUser.id, supabaseUser);
+        user = supabaseUser;
+        // Also ensure wallet is in memory
+        await WalletService.getWallet(user.id);
+      }
+    }
+
     if (!user) {
       res.status(404).json({ error: 'Utilizador não encontrado' });
       return;

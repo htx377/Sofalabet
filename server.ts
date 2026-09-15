@@ -11,6 +11,23 @@ const PORT = 3000;
 async function startServer() {
   const app = createExpressApp();
 
+  // Hydrate data from Supabase if available
+  try {
+    const { supabaseService } = await import('./backend/src/db/supabase.ts');
+    const status = await supabaseService.getStatus();
+    if (status.connected) {
+      console.log('[ZONABET] Supabase detectado. Iniciando sincronização de dados...');
+      const result = await supabaseService.pullDataFromSupabase();
+      if (result.success) {
+        console.log(`[ZONABET] Hidratação concluída: ${result.results?.users || 0} utilizadores, ${result.results?.settings || 0} configurações.`);
+      }
+    } else {
+      console.log('[ZONABET] Supabase não ligado ou tabelas em falta. A usar base de dados local temporária.');
+    }
+  } catch (err) {
+    console.warn('[ZONABET] Falha ao tentar sincronizar com Supabase no arranque:', err);
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
