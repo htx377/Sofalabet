@@ -47,6 +47,9 @@ export class SettlementService {
     match.status = 'FINISHED';
     match.updatedAt = new Date().toISOString();
 
+    // Update in-memory match store
+    db.matches.set(match.id, match);
+
     // Update market selections
     for (const market of match.markets) {
       market.status = 'SETTLED';
@@ -81,110 +84,95 @@ export class SettlementService {
     // Persist match update to Supabase
     const client = supabaseService.getClient();
     if (client) {
-      await client.from('matches').update({
-        status: match.status,
-        home_score: match.homeScore,
-        away_score: match.awayScore,
-        markets: match.markets,
-        updated_at: match.updatedAt
-      }).eq('id', matchId);
+      try {
+        await client.from('matches').update({
+          status: 'FINISHED',
+          home_score: match.homeScore,
+          away_score: match.awayScore,
+          result: winningOutcome,
+        }).eq('id', matchId);
+      } catch (err: any) {
+        console.warn('[Supabase Match Update Warning]:', err.message);
+      }
     }
 
     let settledBetsCount = 0;
     let wonBetsCount = 0;
     let totalPayout = 0;
 
-    // Fetch all PENDING bets that contain this match from Supabase
-    if (client) {
-      // Note: Filter for jsonb array contains can be complex, for safety we fetch pending bets and filter in app
-      const { data: pendingBets } = await client
-        .from('bets')
-        .select('*')
-        .eq('status', 'PENDING');
-      
-      if (pendingBets) {
-        for (const bData of pendingBets) {
-          const bet: Bet = {
-            id: bData.id,
-            userId: bData.user_id,
-            userName: '',
-            userEmail: '',
-            type: bData.type,
-            stake: Number(bData.stake),
-            totalOdds: Number(bData.total_odds),
-            potentialReturn: Number(bData.potential_win),
-            status: bData.status,
-            items: bData.selections || [],
-            createdAt: bData.placed_at,
-            settledAt: bData.settled_at
-          };
+    // Process all PENDING bets in local db
+    for (const bet of db.bets.values()) {
+      if (bet.status !== 'PENDING') continue;
 
-          const matchingItems = bet.items.filter((item) => item.matchId === matchId);
-          if (matchingItems.length === 0) continue;
+      const matchingItems = bet.items.filter((item) => item.matchId === matchId);
+      if (matchingItems.length === 0) continue;
 
-          // Update items
+      // Update items
+      for (const item of matchingItems) {
+        const market = match.markets.find((m) => m.id === item.marketId);
+        const isCorrectScore = market?.type === 'CORRECT_SCORE' || item.marketName.toLowerCase().includes('correto');
+
+        let isWon = false;
+        if (isCorrectScore) {
+          if (item.outcome === correctScoreStr) {
+            isWon = true;
+          } else if (item.outcome === 'OTHER' || item.outcome === 'Outro' || item.label.toLowerCase().includes('outro')) {
+            const otherSelections = market?.selections.filter(s => s.outcome !== 'OTHER' && s.outcome !== 'Outro' && !s.label.toLowerCase().includes('outro')) || [];
+            const commonScores = otherSelections.map(s => s.outcome);
+            if (!commonScores.includes(correctScoreStr)) isWon = true;
+          }
+        } else {
+          isWon = item.outcome === winningOutcome;
+        }
+        item.status = isWon ? 'WON' : 'LOST';
+      }
+
+      // Decide bet
+      const hasLostItem = bet.items.some((item) => item.status === 'LOST');
+      const allItemsDecided = bet.items.every((item) => item.status === 'WON' || item.status === 'VOID');
+
+      if (hasLostItem) {
+        bet.status = 'LOST';
+        bet.settledAt = new Date().toISOString();
+        settledBetsCount++;
+      } else if (allItemsDecided) {
+        let activeOdds = 1.0;
+        for (const item of bet.items) {
+          if (item.status === 'WON') activeOdds *= item.oddsAtBetTime;
+        }
+        const finalOdds = Math.round(activeOdds * 100) / 100;
+        const payout = Money.multiply(bet.stake, finalOdds);
+
+        bet.status = 'WON';
+        bet.settledAt = new Date().toISOString();
+        settledBetsCount++;
+        wonBetsCount++;
+        totalPayout = Money.add(totalPayout, payout);
+
+        // Credit user wallet
+        await WalletService.executeTransaction({
+          userId: bet.userId,
+          type: 'WIN',
+          amount: payout,
+          reference: bet.id,
+          description: `Prémio de Aposta Vencedora #${bet.id.substring(0, 10)} (Odd ${finalOdds})`,
+        });
+      }
+
+      // Persist bet update to Supabase
+      if (client && bet.status !== 'PENDING') {
+        try {
+          await client.from('bets').update({
+            status: bet.status,
+          }).eq('id', bet.id);
+
           for (const item of matchingItems) {
-            const market = match.markets.find((m) => m.id === item.marketId);
-            const isCorrectScore = market?.type === 'CORRECT_SCORE' || item.marketName.toLowerCase().includes('correto');
-
-            let isWon = false;
-            if (isCorrectScore) {
-              // Exact match or 'OTHER' logic
-              if (item.outcome === correctScoreStr) {
-                isWon = true;
-              } else if (item.outcome === 'OTHER' || item.outcome === 'Outro' || item.label.toLowerCase().includes('outro')) {
-                // If the official score is not in the listed selections, then 'OTHER' wins
-                const otherSelections = market?.selections.filter(s => s.outcome !== 'OTHER' && s.outcome !== 'Outro' && !s.label.toLowerCase().includes('outro')) || [];
-                const commonScores = otherSelections.map(s => s.outcome);
-                if (!commonScores.includes(correctScoreStr)) isWon = true;
-              }
-            } else {
-              isWon = item.outcome === winningOutcome;
-            }
-            item.status = isWon ? 'WON' : 'LOST';
+            await client.from('bet_items').update({
+              status: item.status,
+            }).eq('id', item.id);
           }
-
-          // Decide bet
-          const hasLostItem = bet.items.some((item) => item.status === 'LOST');
-          const allItemsDecided = bet.items.every((item) => item.status === 'WON' || item.status === 'VOID');
-
-          if (hasLostItem) {
-            bet.status = 'LOST';
-            bet.settledAt = new Date().toISOString();
-            settledBetsCount++;
-          } else if (allItemsDecided) {
-            let activeOdds = 1.0;
-            for (const item of bet.items) {
-              if (item.status === 'WON') activeOdds *= item.oddsAtBetTime;
-            }
-            const finalOdds = Math.round(activeOdds * 100) / 100;
-            const payout = Money.multiply(bet.stake, finalOdds);
-
-            bet.status = 'WON';
-            bet.settledAt = new Date().toISOString();
-            settledBetsCount++;
-            wonBetsCount++;
-            totalPayout = Money.add(totalPayout, payout);
-
-            // Credit user wallet
-            await WalletService.executeTransaction({
-              userId: bet.userId,
-              type: 'WIN',
-              amount: payout,
-              reference: bet.id,
-              description: `Prémio de Aposta Vencedora #${bet.id.substring(0, 10)} (Odd ${finalOdds})`,
-            });
-          }
-
-          // Save bet update to Supabase
-          if (bet.status !== 'PENDING') {
-            await client.from('bets').update({
-              status: bet.status,
-              selections: bet.items,
-              actual_payout: bet.status === 'WON' ? totalPayout : 0,
-              settled_at: bet.settledAt
-            }).eq('id', bet.id);
-          }
+        } catch (err: any) {
+          console.warn('[Supabase Bet Update Warning]:', err.message);
         }
       }
     }
@@ -225,6 +213,9 @@ export class SettlementService {
     match.status = 'CANCELLED';
     match.updatedAt = new Date().toISOString();
 
+    // Update in-memory match store
+    db.matches.set(match.id, match);
+
     for (const market of match.markets) {
       market.status = 'CLOSED';
       for (const sel of market.selections) sel.status = 'VOID';
@@ -233,82 +224,70 @@ export class SettlementService {
     // Persist update
     const client = supabaseService.getClient();
     if (client) {
-      await client.from('matches').update({
-        status: match.status,
-        markets: match.markets,
-        updated_at: match.updatedAt
-      }).eq('id', matchId);
+      try {
+        await client.from('matches').update({
+          status: 'CANCELLED',
+          result: 'CANCELLED',
+        }).eq('id', matchId);
+      } catch (err: any) {
+        console.warn('[Supabase Match Cancel Warning]:', err.message);
+      }
     }
 
     let refundedBetsCount = 0;
     let totalRefunded = 0;
 
-    if (client) {
-      const { data: affectedBets } = await client
-        .from('bets')
-        .select('*')
-        .eq('status', 'PENDING');
-      
-      if (affectedBets) {
-        for (const bData of affectedBets) {
-          const bet: Bet = {
-            id: bData.id,
-            userId: bData.user_id,
-            userName: '',
-            userEmail: '',
-            type: bData.type,
-            stake: Number(bData.stake),
-            totalOdds: Number(bData.total_odds),
-            potentialReturn: Number(bData.potential_win),
-            status: bData.status,
-            items: bData.selections || [],
-            createdAt: bData.placed_at,
-            settledAt: bData.settled_at
-          };
+    // Process pending bets in local db
+    for (const bet of db.bets.values()) {
+      if (bet.status !== 'PENDING') continue;
 
-          const item = bet.items.find((i) => i.matchId === matchId);
-          if (!item) continue;
+      const item = bet.items.find((i) => i.matchId === matchId);
+      if (!item) continue;
 
-          item.status = 'VOID';
+      item.status = 'VOID';
 
-          if (bet.type === 'SINGLE') {
-            bet.status = 'VOID';
-            bet.settledAt = new Date().toISOString();
+      if (bet.type === 'SINGLE') {
+        bet.status = 'VOID';
+        bet.settledAt = new Date().toISOString();
 
-            await WalletService.executeTransaction({
-              userId: bet.userId,
-              type: 'REFUND',
-              amount: bet.stake,
-              reference: bet.id,
-              description: `Reembolso por jogo cancelado: ${match.homeTeam} vs ${match.awayTeam}`,
-            });
+        await WalletService.executeTransaction({
+          userId: bet.userId,
+          type: 'REFUND',
+          amount: bet.stake,
+          reference: bet.id,
+          description: `Reembolso por jogo cancelado: ${match.homeTeam} vs ${match.awayTeam}`,
+        });
 
-            refundedBetsCount++;
-            totalRefunded = Money.add(totalRefunded, bet.stake);
-          } else {
-            const allVoid = bet.items.every((i) => i.status === 'VOID');
-            if (allVoid) {
-              bet.status = 'VOID';
-              bet.settledAt = new Date().toISOString();
-              await WalletService.executeTransaction({
-                userId: bet.userId,
-                type: 'REFUND',
-                amount: bet.stake,
-                reference: bet.id,
-                description: `Reembolso de aposta múltipla totalmente anulada`,
-              });
-              refundedBetsCount++;
-              totalRefunded = Money.add(totalRefunded, bet.stake);
-            }
-          }
+        refundedBetsCount++;
+        totalRefunded = Money.add(totalRefunded, bet.stake);
+      } else {
+        const allVoid = bet.items.every((i) => i.status === 'VOID');
+        if (allVoid) {
+          bet.status = 'VOID';
+          bet.settledAt = new Date().toISOString();
+          await WalletService.executeTransaction({
+            userId: bet.userId,
+            type: 'REFUND',
+            amount: bet.stake,
+            reference: bet.id,
+            description: `Reembolso de aposta múltipla totalmente anulada`,
+          });
+          refundedBetsCount++;
+          totalRefunded = Money.add(totalRefunded, bet.stake);
+        }
+      }
 
-          if (bet.status !== 'PENDING') {
-            await client.from('bets').update({
-              status: bet.status,
-              selections: bet.items,
-              settled_at: bet.settledAt
-            }).eq('id', bet.id);
-          }
+      if (client && bet.status !== 'PENDING') {
+        try {
+          await client.from('bets').update({
+            status: bet.status,
+          }).eq('id', bet.id);
+
+          await client.from('bet_items').update({
+            status: 'VOID',
+          }).eq('id', item.id);
+        } catch (err: any) {
+          console.warn('[Supabase Bet Cancel Warning]:', err.message);
         }
       }
     }

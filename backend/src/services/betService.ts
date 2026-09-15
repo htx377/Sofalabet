@@ -70,18 +70,24 @@ export class BetService {
         potentialReturn,
       });
 
-      // 3. Financial execution (Atomic balance check and update)
+      // 3. Generate bet ID
+      const betId = `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      for (const item of betItems) {
+        item.betId = betId;
+      }
+
+      // 4. Financial execution (Atomic balance check and update)
       const { wallet } = await WalletService.executeTransaction({
         userId,
         type: 'BET',
         amount: stake,
-        reference: `BET-TEMP-${Date.now()}`,
+        reference: betId,
         description: `Aposta ${betItems.length > 1 ? 'Múltipla' : 'Simples'} #${betItems.length} seleções`,
       });
 
-      // 4. Create bet record
+      // 5. Create bet record
       const bet: Bet = {
-        id: `bet-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: betId,
         userId,
         userName: '', // Will be hydrated by frontend if needed
         userEmail: '',
@@ -115,6 +121,7 @@ export class BetService {
 
         // Insert items into bet_items table
         const itemsToInsert = betItems.map(item => ({
+          id: item.id,
           bet_id: bet.id,
           match_id: item.matchId,
           market_id: item.marketId,

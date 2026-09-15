@@ -375,6 +375,40 @@ export class AdminController {
   static async getUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
     const host = req.get('host') || 'localhost:3000';
     const proto = (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+    const client = supabaseService.getClient();
+
+    if (client) {
+      try {
+        const { data: profiles, error } = await client
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && profiles && profiles.length > 0) {
+          const users = profiles.map((p) => {
+            const code = p.referral_code || `ZONA${(p.phone || '').replace(/\D/g, '').slice(-9)}`;
+            const referralLink = p.referral_link || `${proto}://${host}/?ref=${code}`;
+            return {
+              id: p.id,
+              name: p.name,
+              email: p.email || `${(p.phone || '').replace(/\D/g, '')}@zonabet.mz`,
+              phone: p.phone,
+              role: p.role,
+              isBlocked: p.status === 'BLOCKED',
+              balance: Number(p.balance || 0),
+              referralCode: code,
+              referralLink,
+              referredBy: p.referred_by,
+              createdAt: p.created_at,
+            };
+          });
+          res.status(200).json({ users });
+          return;
+        }
+      } catch (err) {
+        console.warn('[Admin getUsers Supabase Error]:', err);
+      }
+    }
 
     const usersPromises = Array.from(db.users.values()).map(async (u) => {
       const wallet = await WalletService.getWallet(u.id);
@@ -399,10 +433,18 @@ export class AdminController {
     res.status(200).json({ users });
   }
 
-  static toggleUserBlock(req: AuthenticatedRequest, res: Response): void {
+  static async toggleUserBlock(req: AuthenticatedRequest, res: Response): Promise<void> {
     if (!req.user) return;
     const { id } = req.params;
-    const targetUser = db.users.get(id);
+    let targetUser = db.users.get(id);
+    if (!targetUser) {
+      const dbUser = await supabaseService.findUserById(id);
+      if (dbUser) {
+        targetUser = dbUser;
+        db.users.set(targetUser.id, targetUser);
+      }
+    }
+
     if (!targetUser) {
       res.status(404).json({ error: 'Utilizador não encontrado' });
       return;
@@ -507,23 +549,33 @@ export class AdminController {
   static async getAllTransactions(req: AuthenticatedRequest, res: Response): Promise<void> {
     const client = supabaseService.getClient();
     if (client) {
-      const { data, error } = await client
-        .from('wallet_transactions')
+      let { data, error } = await client
+        .from('transactions')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
+
+      if (error) {
+        const alt = await client
+          .from('wallet_transactions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        data = alt.data;
+        error = alt.error;
+      }
       
       if (!error && data) {
         const transactions = data.map(tx => ({
           id: tx.id,
           userId: tx.user_id,
-          type: tx.type,
+          type: tx.type === 'BET_PLACEMENT' ? 'BET' : tx.type === 'BET_WIN' ? 'WIN' : tx.type,
           amount: Number(tx.amount),
-          previousBalance: Number(tx.balance_before),
-          nextBalance: Number(tx.balance_after),
-          reference: tx.reference,
-          description: tx.notes,
-          status: tx.status,
+          previousBalance: Number(tx.prev_balance ?? tx.balance_before ?? 0),
+          nextBalance: Number(tx.next_balance ?? tx.balance_after ?? 0),
+          reference: tx.reference_id ?? tx.reference ?? '',
+          description: tx.description ?? tx.notes ?? '',
+          status: 'COMPLETED',
           createdAt: tx.created_at,
         }));
         res.status(200).json({ transactions });

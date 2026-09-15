@@ -131,6 +131,7 @@ export class WalletService {
           const { error: txError } = await client
             .from('transactions')
             .insert({
+              id: transaction.id,
               user_id: userId,
               type: ddlType,
               amount: amount,

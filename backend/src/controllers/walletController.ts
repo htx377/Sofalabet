@@ -34,23 +34,33 @@ export class WalletController {
 
     const client = supabaseService.getClient();
     if (client) {
-      const { data, error } = await client
-        .from('wallet_transactions')
+      let { data, error } = await client
+        .from('transactions')
         .select('*')
         .eq('user_id', req.user.userId)
         .order('created_at', { ascending: false });
+
+      if (error) {
+        const alt = await client
+          .from('wallet_transactions')
+          .select('*')
+          .eq('user_id', req.user.userId)
+          .order('created_at', { ascending: false });
+        data = alt.data;
+        error = alt.error;
+      }
       
       if (!error && data) {
         const transactions = data.map(tx => ({
           id: tx.id,
           userId: tx.user_id,
-          type: tx.type,
+          type: tx.type === 'BET_PLACEMENT' ? 'BET' : tx.type === 'BET_WIN' ? 'WIN' : tx.type,
           amount: Number(tx.amount),
-          previousBalance: Number(tx.balance_before),
-          nextBalance: Number(tx.balance_after),
-          reference: tx.reference,
-          description: tx.notes,
-          status: tx.status,
+          previousBalance: Number(tx.prev_balance ?? tx.balance_before ?? 0),
+          nextBalance: Number(tx.next_balance ?? tx.balance_after ?? 0),
+          reference: tx.reference_id ?? tx.reference ?? '',
+          description: tx.description ?? tx.notes ?? '',
+          status: 'COMPLETED',
           createdAt: tx.created_at,
         }));
         res.status(200).json({ transactions });
