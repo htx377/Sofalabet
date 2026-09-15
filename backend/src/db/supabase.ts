@@ -294,6 +294,36 @@ class SupabaseService {
     }
   }
 
+  public async findUserById(id: string): Promise<User | null> {
+    if (!this.client) return null;
+    try {
+      const { data, error } = await this.client
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      return {
+        id: data.id,
+        phone: data.phone,
+        name: data.name,
+        email: data.email || `${data.phone}@zonabet.co.mz`,
+        passwordHash: '', // Password hash is not synced for security
+        role: data.role as 'USER' | 'ADMIN',
+        isBlocked: data.status === 'BLOCKED',
+        referralCode: data.referral_code || '',
+        referredBy: data.referred_by,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    } catch (err) {
+      console.error('[Supabase] Erro ao buscar usuário por ID:', err);
+      return null;
+    }
+  }
+
   public async syncDepositProofRealtime(proof: DepositProof): Promise<void> {
     if (!this.client) return;
     try {

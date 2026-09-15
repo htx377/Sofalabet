@@ -252,33 +252,29 @@ export const DepositPanel: React.FC<DepositPanelProps> = ({
           </div>
 
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-              Depósito Confirmado com Sucesso!
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+              Pedido de Depósito Submetido!
             </span>
             <div className="text-3xl font-black text-white mt-1">
-              +{successData.amount.toFixed(2)} <span className="text-base text-slate-400">MT</span>
+              {successData.amount.toFixed(2)} <span className="text-base text-slate-400">MT</span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              Os fundos já foram creditados e estão prontos para apostas desportivas.
+              O seu comprovativo foi enviado. O saldo será creditado assim que a administração confirmar o recebimento.
             </p>
           </div>
 
           <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 text-xs text-left space-y-2 font-mono">
             <div className="flex justify-between">
-              <span className="text-slate-400 font-sans">Referência da Transação:</span>
+              <span className="text-slate-400 font-sans">Referência:</span>
               <span className="text-white font-bold">{successData.reference}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400 font-sans">Método de Pagamento:</span>
-              <span className="text-orange-400 font-sans font-bold">{successData.methodLabel}</span>
+              <span className="text-slate-400 font-sans">Estado:</span>
+              <span className="text-amber-400 font-sans font-bold">Aguardando Validação</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400 font-sans">Número Movitel:</span>
-              <span className="text-white font-sans">{successData.phone}</span>
-            </div>
-            <div className="flex justify-between pt-1 border-t border-slate-800 font-sans">
-              <span className="text-slate-400 font-bold">Novo Saldo Disponível:</span>
-              <span className="text-emerald-400 font-black">{successData.newBalance.toFixed(2)} MT</span>
+              <span className="text-slate-400 font-sans">Método:</span>
+              <span className="text-orange-400 font-sans font-bold">{successData.methodLabel}</span>
             </div>
           </div>
 

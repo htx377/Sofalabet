@@ -18,6 +18,7 @@ import { Money } from '../utils/money.ts';
 import { supabaseService } from '../db/supabase.ts';
 import { settingsService } from '../services/settingsService.ts';
 import { RiskService } from '../services/riskService.ts';
+import { ReferralService } from '../services/referralService.ts';
 
 export class AdminController {
   static async getDashboardStats(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -828,6 +829,28 @@ export class AdminController {
     }
 
     const previousStatus = proof.status;
+    
+    // If status is changing to APPROVED, credit the user's wallet
+    if (status === 'APPROVED' && previousStatus !== 'APPROVED') {
+      try {
+        await WalletService.executeTransaction({
+          userId: proof.userId,
+          type: 'DEPOSIT',
+          amount: proof.amount,
+          reference: proof.referenceCode,
+          description: `Depósito via ${proof.method} aprovado por ${req.user.email}${proof.operatorTxId ? ` [Ref: ${proof.operatorTxId}]` : ''}`,
+        });
+
+        // Trigger 5% referral bonus if this user was invited by someone
+        ReferralService.processDepositBonus(proof.userId, proof.amount).catch((err) => {
+          console.error('[ReferralBonus] Erro ao creditar bónus de 5% na aprovação:', err);
+        });
+      } catch (err: any) {
+        res.status(400).json({ error: `Erro ao creditar saldo: ${err.message}` });
+        return;
+      }
+    }
+
     const updated = db.updateDepositProofStatus(
       id,
       status,

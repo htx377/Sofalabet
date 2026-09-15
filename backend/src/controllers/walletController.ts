@@ -112,14 +112,6 @@ export class WalletController {
     const notes = req.body.notes ? String(req.body.notes).trim() : undefined;
 
     try {
-      const { wallet, transaction } = await WalletService.executeTransaction({
-        userId: req.user.userId,
-        type: 'DEPOSIT',
-        amount,
-        reference: refCode,
-        description: `Depósito via ${methodLabel} (${targetPhone})${receiptReference ? ` [Ref: ${receiptReference}]` : ''}`,
-      });
-
       // Register deposit proof for administration review & audit trail
       const depositProof = db.addDepositProof({
         id: `proof-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -135,11 +127,11 @@ export class WalletController {
         receiptDataUrl: receiptImage,
         receiptFileSize,
         notes,
-        status: 'APPROVED',
-        reviewedBy: 'Sistema ZONABET / Instantâneo',
+        status: 'PENDING',
+        reviewedBy: '',
         reviewNotes: receiptFileName
-          ? `Comprovativo enviado pelo apostador (${receiptFileName}). Arquivado no sistema da administração.`
-          : 'Depósito registrado via canal de pagamento móvel.',
+          ? `Comprovativo enviado pelo apostador (${receiptFileName}). Aguardando conferência administrativa.`
+          : 'Depósito registrado. Aguardando validação manual.',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -147,15 +139,8 @@ export class WalletController {
       // Real-time synchronization with Supabase
       supabaseService.syncDepositProofRealtime(depositProof).catch(console.error);
 
-      // Trigger 5% referral bonus if this user was invited by someone
-      ReferralService.processDepositBonus(req.user.userId, amount).catch((err) => {
-        console.error('[ReferralBonus] Erro ao creditar bónus de 5%:', err);
-      });
-
       res.status(200).json({
-        message: `Depósito de ${amount.toFixed(2)} MZN via ${methodLabel} confirmado com sucesso!`,
-        wallet,
-        transaction,
+        message: `Pedido de depósito de ${amount.toFixed(2)} MZN via ${methodLabel} submetido! Aguarde a validação administrativa.`,
         depositProof,
       });
     } catch (err: any) {
