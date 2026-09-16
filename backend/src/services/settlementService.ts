@@ -1,5 +1,5 @@
 import { db } from '../db/store.ts';
-import { Match, Bet } from '../types/index.ts';
+import type { Match, Bet } from '../types/index.ts';
 import { WalletService } from './walletService.ts';
 import { AuditService } from './auditService.ts';
 import { Money } from '../utils/money.ts';

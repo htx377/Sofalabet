@@ -1,5 +1,5 @@
 import { db } from '../db/store.ts';
-import { Wallet, WalletTransaction, TransactionType } from '../types/index.ts';
+import type { Wallet, WalletTransaction, TransactionType } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 import { Mutex } from 'async-mutex';
 

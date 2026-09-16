@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.ts';
 import { db } from '../db/store.ts';
-import { AuthTokenPayload } from '../types/index.ts';
+import type { AuthTokenPayload } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 
 export interface AuthenticatedRequest extends Request {

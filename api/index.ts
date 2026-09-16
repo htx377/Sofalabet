@@ -46,13 +46,17 @@ export default async function handler(req: any, res: any) {
   await ensureHydrated();
 
   // 1. Detect path from Vercel proxy headers if available
-  const forwardedPath =
-    (req.headers && (req.headers['x-forwarded-uri'] || req.headers['x-matched-path'])) as string | undefined;
+  const rawForwarded =
+    (req.headers && (req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.headers['x-vercel-matched-path'])) as string | undefined;
 
-  if (forwardedPath && typeof forwardedPath === 'string' && forwardedPath.startsWith('/')) {
-    const queryIdx = (req.url || '').indexOf('?');
-    const queryStr = queryIdx >= 0 ? req.url.slice(queryIdx) : '';
-    req.url = forwardedPath + queryStr;
+  if (rawForwarded && typeof rawForwarded === 'string' && rawForwarded.startsWith('/')) {
+    if (rawForwarded.includes('?')) {
+      req.url = rawForwarded;
+    } else {
+      const queryIdx = (req.url || '').indexOf('?');
+      const queryStr = queryIdx >= 0 ? req.url.slice(queryIdx) : '';
+      req.url = rawForwarded + queryStr;
+    }
   }
 
   // 2. Detect path from Vercel [...all].ts catch-all query parameter

@@ -1,6 +1,6 @@
-import { Response } from 'express';
+import type { Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { AuthenticatedRequest } from '../middleware/auth.ts';
+import type { AuthenticatedRequest } from '../middleware/auth.ts';
 import { db } from '../db/store.ts';
 import { MatchService } from '../services/matchService.ts';
 import { SettlementService } from '../services/settlementService.ts';

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/store.ts';
@@ -6,8 +6,8 @@ import { config } from '../config/index.ts';
 import { registerSchema, loginSchema } from '../validators/schemas.ts';
 import { WalletService } from '../services/walletService.ts';
 import { AuditService } from '../services/auditService.ts';
-import { AuthenticatedRequest } from '../middleware/auth.ts';
-import { User, AuthTokenPayload } from '../types/index.ts';
+import type { AuthenticatedRequest } from '../middleware/auth.ts';
+import type { User, AuthTokenPayload } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 import { ReferralService } from '../services/referralService.ts';
 

@@ -1,6 +1,6 @@
 import { db } from '../db/store.ts';
 import { WalletService } from './walletService.ts';
-import { Referral } from '../types/index.ts';
+import type { Referral } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 
 export class ReferralService {

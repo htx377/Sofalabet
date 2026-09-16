@@ -1,5 +1,5 @@
 import { db } from '../db/store.ts';
-import { MarketRisk, OutcomeRisk, RiskOverview } from '../types/index.ts';
+import type { MarketRisk, OutcomeRisk, RiskOverview } from '../types/index.ts';
 import { settingsService } from './settingsService.ts';
 import { supabaseService } from '../db/supabase.ts';
 import { MatchService } from './matchService.ts';

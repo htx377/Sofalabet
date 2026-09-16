@@ -1,5 +1,5 @@
 import { db } from '../db/store.ts';
-import { AuditLog } from '../types/index.ts';
+import type { AuditLog } from '../types/index.ts';
 import { supabaseService } from '../db/supabase.ts';
 
 export class AuditService {

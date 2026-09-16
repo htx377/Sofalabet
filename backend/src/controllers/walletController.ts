@@ -1,5 +1,5 @@
-import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth.ts';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '../middleware/auth.ts';
 import { db } from '../db/store.ts';
 import { WalletService } from '../services/walletService.ts';
 import { ReferralService } from '../services/referralService.ts';

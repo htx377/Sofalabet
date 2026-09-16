@@ -1,4 +1,4 @@
-import { Match } from '../types/index.ts';
+import type { Match } from '../types/index.ts';
 
 /**
  * Parses kickoffDate (e.g. 'Hoje', 'Amanhã', '2026-09-09', '09/09/2026') and kickoffTime ('15:00', '15:30')

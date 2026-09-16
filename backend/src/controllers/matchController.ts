@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { db } from '../db/store.ts';
 import { MatchService } from '../services/matchService.ts';
 

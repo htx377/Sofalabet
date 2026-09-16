@@ -1,5 +1,5 @@
 import { supabaseService } from '../db/supabase.ts';
-import { SystemSettings } from '../types/index.ts';
+import type { SystemSettings } from '../types/index.ts';
 import { AuditService } from './auditService.ts';
 
 const DEFAULT_SETTINGS: SystemSettings = {

@@ -1,5 +1,5 @@
 import { db } from '../db/store.ts';
-import { Match, Market, Selection } from '../types/index.ts';
+import type { Match, Market, Selection } from '../types/index.ts';
 import { AuditService } from './auditService.ts';
 import { supabaseService } from '../db/supabase.ts';
 
