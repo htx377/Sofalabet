@@ -30,30 +30,48 @@ export function createExpressApp() {
     next();
   });
 
-  // Health check
-  app.get('/api/health', (req: Request, res: Response, next: NextFunction) => {
+  // Health check handler
+  const healthHandler = (req: Request, res: Response) => {
     res.json({
       status: 'ok',
       service: 'ZONABET API',
       currency: 'MZN',
       timestamp: new Date().toISOString(),
     });
-  });
+  };
 
-  // REST API Routes
-  app.get('/api/settings/public', (req: Request, res: Response, next: NextFunction) => {
+  // Public settings handler
+  const settingsHandler = (req: Request, res: Response, next: NextFunction) => {
     settingsService.getPublicSettings().then(settings => res.json({ settings })).catch(next);
-  });
+  };
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/matches', matchRoutes);
-  app.use('/api/bets', betRoutes);
-  app.use('/api/wallet', walletRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api/supabase', supabaseRoutes);
+  // Register routes on both '/api' and '' (to support serverless proxies where /api might be stripped)
+  const registerApiRoutes = (prefix: string) => {
+    app.get(`${prefix}/health`, healthHandler);
+    app.get(`${prefix}/settings/public`, settingsHandler);
+    app.use(`${prefix}/auth`, authRoutes);
+    app.use(`${prefix}/matches`, matchRoutes);
+    app.use(`${prefix}/bets`, betRoutes);
+    app.use(`${prefix}/wallet`, walletRoutes);
+    app.use(`${prefix}/admin`, adminRoutes);
+    app.use(`${prefix}/supabase`, supabaseRoutes);
+  };
+
+  registerApiRoutes('/api');
+  registerApiRoutes('');
+
+  // 404 handler for API routes
+  app.use(['/api/*', '/api'], (req: Request, res: Response) => {
+    res.status(404).json({
+      error: `Rota API não encontrada: ${req.method} ${req.originalUrl || req.url}`,
+    });
+  });
 
   // Global error handler for API
-  app.use('/api/*', (err: any, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
     console.error('API Error:', err);
     res.status(err.status || 500).json({
       error: err.message || 'Ocorreu um erro interno no servidor',

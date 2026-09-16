@@ -24,15 +24,29 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkError: any) {
+    console.error(`[API Network Error] ${options.method || 'GET'} ${endpoint}:`, networkError);
+    throw new Error('Falha de ligação ao servidor. Por favor, tente novamente.');
+  }
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || 'Ocorreu um erro no pedido.');
+    console.error(`[API Error] ${options.method || 'GET'} ${endpoint} -> ${response.status}:`, data);
+    const message =
+      data.error ||
+      (response.status === 404
+        ? 'Serviço temporariamente indisponível (404).'
+        : response.status === 504
+        ? 'O servidor demorou muito a responder. Tente novamente.'
+        : 'Ocorreu um erro no pedido.');
+    throw new Error(message);
   }
 
   return data as T;

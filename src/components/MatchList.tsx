@@ -45,8 +45,8 @@ export const MatchList: React.FC = () => {
         api.getMatches(Object.keys(params).length > 0 ? params : undefined),
         api.getCompetitions(),
       ]);
-      setMatches(matchRes.matches);
-      setCompetitions(compRes.competitions);
+      setMatches(matchRes?.matches || []);
+      setCompetitions(compRes?.competitions || []);
     } catch (err: any) {
       if (!silent) setError(err.message || 'Erro ao carregar os jogos');
     } finally {
@@ -253,9 +253,17 @@ export const MatchList: React.FC = () => {
       </div>
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2.5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{error}</span>
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => fetchMatches(false)}
+            className="px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-bold transition-all text-xs flex-shrink-0"
+          >
+            Tentar novamente
+          </button>
         </div>
       )}
 
