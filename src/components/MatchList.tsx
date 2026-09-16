@@ -9,11 +9,31 @@ import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
 import { subscribeToSettlement } from '../utils/settlementEvents.ts';
 
 export const MatchList: React.FC = () => {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [matches, setMatches] = useState<Match[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('zonabet_matches_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [competitions, setCompetitions] = useState<Competition[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('zonabet_comp_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedTier, setSelectedTier] = useState<'ALL' | CompetitionCategory>('ALL');
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem('zonabet_matches_cache');
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState<string | null>(null);
   const [pulsingMatchId, setPulsingMatchId] = useState<string | null>(null);
   const [expandedCorrectScore, setExpandedCorrectScore] = useState<Record<string, boolean>>({});
@@ -30,8 +50,8 @@ export const MatchList: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const fetchMatches = async (silent = false) => {
-    if (!silent) setLoading(true);
+  const fetchMatches = async (silent = false, retryCount = 0) => {
+    if (!silent && matches.length === 0) setLoading(true);
     setError(null);
     try {
       const params: { competitionId?: string; category?: string } = {};
@@ -45,9 +65,29 @@ export const MatchList: React.FC = () => {
         api.getMatches(Object.keys(params).length > 0 ? params : undefined),
         api.getCompetitions(),
       ]);
-      setMatches(matchRes?.matches || []);
-      setCompetitions(compRes?.competitions || []);
+      const fetchedMatches = matchRes?.matches || [];
+      const fetchedComps = compRes?.competitions || [];
+
+      setMatches(fetchedMatches);
+      setCompetitions(fetchedComps);
+
+      try {
+        if (fetchedMatches.length > 0) {
+          sessionStorage.setItem('zonabet_matches_cache', JSON.stringify(fetchedMatches));
+        }
+        if (fetchedComps.length > 0) {
+          sessionStorage.setItem('zonabet_comp_cache', JSON.stringify(fetchedComps));
+        }
+      } catch {}
     } catch (err: any) {
+      console.warn('[MatchList] Falha ao carregar jogos:', err);
+      // Auto-retry uma vez se a lista estiver vazia (cold-start da Vercel)
+      if (retryCount === 0) {
+        setTimeout(() => {
+          fetchMatches(true, retryCount + 1);
+        }, 1200);
+        return;
+      }
       if (!silent) setError(err.message || 'Erro ao carregar os jogos');
     } finally {
       if (!silent) setLoading(false);

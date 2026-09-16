@@ -8,116 +8,142 @@ export class MatchService {
    * Retrieves all matches with their markets and selections from Supabase
    */
   static async getAllMatches(filters?: { status?: string; competitionId?: string; category?: string }): Promise<Match[]> {
-    const client = supabaseService.getClient();
-    if (client) {
-      let query = client
-        .from('matches')
-        .select(`
-          *,
-          markets (
+    try {
+      const client = supabaseService.getClient();
+      if (client) {
+        let query = client
+          .from('matches')
+          .select(`
             *,
-            selections (*)
-          )
-        `);
-      
-      if (filters?.status) {
-        const dbStatus = filters.status === 'OPEN' ? 'PRE_MATCH' : filters.status;
-        query = query.eq('status', dbStatus);
-      }
-      if (filters?.competitionId) {
-        query = query.eq('competition_id', filters.competitionId);
-      }
-      if (filters?.category) {
-        query = query.eq('competition_category', filters.category);
-      }
+            markets (
+              *,
+              selections (*)
+            )
+          `);
+        
+        if (filters?.status) {
+          const dbStatus = filters.status === 'OPEN' ? 'PRE_MATCH' : filters.status;
+          query = query.eq('status', dbStatus);
+        }
+        if (filters?.competitionId) {
+          query = query.eq('competition_id', filters.competitionId);
+        }
+        if (filters?.category) {
+          query = query.eq('competition_category', filters.category);
+        }
 
-      const { data: matchesData, error } = await query.order('start_time', { ascending: true });
-      
-      if (!error && matchesData) {
-        return matchesData.map(m => ({
-          id: m.id,
-          competitionId: m.competition_id,
-          competitionName: m.competition_name,
-          competitionCategory: m.competition_category || 'Futebol',
-          homeTeam: m.home_team,
-          awayTeam: m.away_team,
-          kickoffDate: m.start_time.split('T')[0],
-          kickoffTime: m.start_time.split('T')[1].substring(0, 5),
-          status: m.status === 'PRE_MATCH' ? 'OPEN' : m.status,
-          homeScore: m.home_score,
-          awayScore: m.away_score,
-          isFeatured: m.is_featured,
-          markets: m.markets.map((mk: any) => ({
-            id: mk.id,
-            name: mk.name,
-            type: mk.type,
-            status: mk.status,
-            maxExposure: mk.max_exposure,
-            maxStake: mk.max_stake,
-            selections: mk.selections.map((s: any) => ({
-              id: s.id,
-              outcome: s.outcome,
-              label: s.label,
-              odds: Number(s.odds),
-              status: s.status
-            }))
-          })),
-          createdAt: m.created_at,
-          updatedAt: m.created_at
-        }));
+        const { data: matchesData, error } = await query.order('start_time', { ascending: true });
+        
+        if (!error && matchesData && matchesData.length > 0) {
+          return matchesData.map((m: any) => {
+            const rawTime = m.start_time || '';
+            const dateParts = rawTime.includes('T') ? rawTime.split('T') : [rawTime || 'Hoje', '15:00'];
+            return {
+              id: m.id,
+              competitionId: m.competition_id,
+              competitionName: m.competition_name,
+              competitionCategory: m.competition_category || 'Futebol',
+              homeTeam: m.home_team,
+              awayTeam: m.away_team,
+              kickoffDate: dateParts[0] || 'Hoje',
+              kickoffTime: (dateParts[1] || '15:00').substring(0, 5),
+              status: m.status === 'PRE_MATCH' ? 'OPEN' : m.status || 'OPEN',
+              homeScore: m.home_score,
+              awayScore: m.away_score,
+              isFeatured: m.is_featured ?? false,
+              markets: (m.markets || []).map((mk: any) => ({
+                id: mk.id,
+                name: mk.name,
+                type: mk.type,
+                status: mk.status || 'ACTIVE',
+                maxExposure: mk.max_exposure,
+                maxStake: mk.max_stake,
+                selections: (mk.selections || []).map((s: any) => ({
+                  id: s.id,
+                  outcome: s.outcome,
+                  label: s.label,
+                  odds: Number(s.odds || 1.01),
+                  status: s.status || 'ACTIVE'
+                }))
+              })),
+              createdAt: m.created_at || new Date().toISOString(),
+              updatedAt: m.created_at || new Date().toISOString()
+            };
+          });
+        }
       }
+    } catch (supaErr) {
+      console.warn('[MatchService] Erro ou timeout na consulta Supabase, a utilizar dados locais:', supaErr);
     }
-    return Array.from(db.matches.values());
+
+    // Fallback seguro aos dados em memória com todos os filtros respeitados
+    let localMatches = Array.from(db.matches.values());
+    if (filters?.competitionId) {
+      localMatches = localMatches.filter(m => m.competitionId === filters.competitionId);
+    }
+    if (filters?.category && filters.category !== 'ALL') {
+      localMatches = localMatches.filter(m => m.competitionCategory === filters.category);
+    }
+    if (filters?.status) {
+      localMatches = localMatches.filter(m => m.status === filters.status);
+    }
+    return localMatches;
   }
 
   static async getMatchById(id: string): Promise<Match | null> {
-    const client = supabaseService.getClient();
-    if (client) {
-      const { data, error } = await client
-        .from('matches')
-        .select(`
-          *,
-          markets (
+    try {
+      const client = supabaseService.getClient();
+      if (client) {
+        const { data, error } = await client
+          .from('matches')
+          .select(`
             *,
-            selections (*)
-          )
-        `)
-        .eq('id', id)
-        .single();
-      
-      if (!error && data) {
-        return {
-          id: data.id,
-          competitionId: data.competition_id,
-          competitionName: data.competition_name,
-          competitionCategory: data.competition_category || 'Futebol',
-          homeTeam: data.home_team,
-          awayTeam: data.away_team,
-          kickoffDate: data.start_time.split('T')[0],
-          kickoffTime: data.start_time.split('T')[1].substring(0, 5),
-          status: data.status === 'PRE_MATCH' ? 'OPEN' : data.status,
-          homeScore: data.home_score,
-          awayScore: data.away_score,
-          isFeatured: data.is_featured,
-          markets: data.markets.map((mk: any) => ({
-            id: mk.id,
-            name: mk.name,
-            type: mk.type,
-            status: mk.status,
-            maxExposure: mk.max_exposure,
-            maxStake: mk.max_stake,
-            selections: mk.selections.map((s: any) => ({
-              id: s.id,
-              outcome: s.outcome,
-              label: s.label,
-              odds: Number(s.odds),
-              status: s.status
-            }))
-          })),
-          createdAt: data.created_at,
-          updatedAt: data.created_at
-        };
+            markets (
+              *,
+              selections (*)
+            )
+          `)
+          .eq('id', id)
+          .single();
+        
+        if (!error && data) {
+          const rawTime = data.start_time || '';
+          const dateParts = rawTime.includes('T') ? rawTime.split('T') : [rawTime || 'Hoje', '15:00'];
+          return {
+            id: data.id,
+            competitionId: data.competition_id,
+            competitionName: data.competition_name,
+            competitionCategory: data.competition_category || 'Futebol',
+            homeTeam: data.home_team,
+            awayTeam: data.away_team,
+            kickoffDate: dateParts[0] || 'Hoje',
+            kickoffTime: (dateParts[1] || '15:00').substring(0, 5),
+            status: data.status === 'PRE_MATCH' ? 'OPEN' : data.status || 'OPEN',
+            homeScore: data.home_score,
+            awayScore: data.away_score,
+            isFeatured: data.is_featured ?? false,
+            markets: (data.markets || []).map((mk: any) => ({
+              id: mk.id,
+              name: mk.name,
+              type: mk.type,
+              status: mk.status || 'ACTIVE',
+              maxExposure: mk.max_exposure,
+              maxStake: mk.max_stake,
+              selections: (mk.selections || []).map((s: any) => ({
+                id: s.id,
+                outcome: s.outcome,
+                label: s.label,
+                odds: Number(s.odds || 1.01),
+                status: s.status || 'ACTIVE'
+              }))
+            })),
+            createdAt: data.created_at || new Date().toISOString(),
+            updatedAt: data.created_at || new Date().toISOString()
+          };
+        }
       }
+    } catch (supaErr) {
+      console.warn('[MatchService] Erro ao buscar jogo por id no Supabase:', supaErr);
     }
     return db.matches.get(id) || null;
   }
