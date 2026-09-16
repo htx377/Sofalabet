@@ -3,12 +3,13 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/index.ts';
 import { db } from '../db/store.ts';
 import { AuthTokenPayload } from '../types/index.ts';
+import { supabaseService } from '../db/supabase.ts';
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthTokenPayload;
 }
 
-export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+export async function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Não autenticado. Token não fornecido.' });
@@ -18,7 +19,17 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
   const token = authHeader.substring(7);
   try {
     const payload = jwt.verify(token, config.jwtSecret) as AuthTokenPayload;
-    const user = db.users.get(payload.userId);
+    let user = db.users.get(payload.userId);
+
+    // Resiliency: Fallback to Supabase if not in memory (common in serverless/Vercel)
+    if (!user && supabaseService.isAvailable()) {
+      const supabaseUser = await supabaseService.findUserById(payload.userId);
+      if (supabaseUser) {
+        db.users.set(supabaseUser.id, supabaseUser);
+        user = supabaseUser;
+      }
+    }
+
     if (!user) {
       res.status(401).json({ error: 'Utilizador não encontrado ou removido.' });
       return;

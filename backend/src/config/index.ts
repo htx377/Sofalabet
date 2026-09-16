@@ -4,10 +4,10 @@ dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Warn if JWT_SECRET is missing in production, but don't crash to allow the app to start
+// Throw error if JWT_SECRET is missing in production to prevent using a known fallback
 if (isProduction && !process.env.JWT_SECRET) {
-  console.warn('⚠️ CRITICAL: JWT_SECRET environment variable is missing in production!');
-  console.warn('⚠️ Using a default fallback secret. PLEASE SET A SECURE JWT_SECRET IN SETTINGS IMMEDIATELY!');
+  console.error('❌ FATAL ERROR: JWT_SECRET environment variable is missing in production!');
+  throw new Error('Environment configuration error: JWT_SECRET must be set in production environment.');
 }
 
 export const config = {

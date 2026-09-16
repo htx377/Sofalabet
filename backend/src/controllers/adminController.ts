@@ -537,8 +537,8 @@ export class AdminController {
     }
   }
 
-  static getAuditLogs(req: AuthenticatedRequest, res: Response): void {
-    const logs = AuditService.getLogs(100);
+  static async getAuditLogs(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const logs = await AuditService.getLogs(100);
     res.status(200).json({ logs });
   }
 

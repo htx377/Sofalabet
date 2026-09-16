@@ -132,6 +132,8 @@ class SupabaseService {
       await this.client.from('profiles').upsert({
         id: user.id,
         phone: user.phone,
+        email: user.email,
+        password_hash: user.passwordHash,
         name: user.name,
         role: user.role,
         status: user.isBlocked ? 'BLOCKED' : 'ACTIVE',
@@ -310,7 +312,7 @@ class SupabaseService {
         phone: data.phone,
         name: data.name,
         email: data.email || `${data.phone}@zonabet.co.mz`,
-        passwordHash: '', // Password hash is not synced for security
+        passwordHash: data.password_hash || '',
         role: data.role as 'USER' | 'ADMIN',
         isBlocked: data.status === 'BLOCKED',
         referralCode: data.referral_code || '',
@@ -398,6 +400,8 @@ class SupabaseService {
           const existing = dbStore.users.get(p.id);
           if (existing) {
             existing.name = p.name || existing.name;
+            existing.email = p.email || existing.email;
+            existing.passwordHash = p.password_hash || existing.passwordHash;
             existing.role = p.role || existing.role;
             existing.isBlocked = p.status === 'BLOCKED';
             const wallet = dbStore.wallets.get(p.id);
