@@ -774,9 +774,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
             onOpenOddsModal={(m) => {
               setShowOddsModal(m);
               const mkt = m.markets?.find((mk) => mk.type === '1X2');
-              const h = mkt?.odds?.find((o) => o.name === '1')?.value || 2.0;
-              const d = mkt?.odds?.find((o) => o.name === 'X')?.value || 3.0;
-              const a = mkt?.odds?.find((o) => o.name === '2')?.value || 3.0;
+              const h = mkt?.selections?.find((s) => s.outcome === '1')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === '1')?.value : 2.0) || 2.0;
+              const d = mkt?.selections?.find((s) => s.outcome === 'X')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === 'X')?.value : 3.0) || 3.0;
+              const a = mkt?.selections?.find((s) => s.outcome === '2')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === '2')?.value : 3.0) || 3.0;
               setEditHome(h.toFixed(2));
               setEditDraw(d.toFixed(2));
               setEditAway(a.toFixed(2));

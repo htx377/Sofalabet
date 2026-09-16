@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/dist/server.cjs"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",

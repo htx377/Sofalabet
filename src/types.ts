@@ -58,6 +58,7 @@ export interface Market {
   maxPayout?: number;
   maxExposure?: number;
   selections: Selection[];
+  odds?: any;
 }
 
 export type CompetitionCategory = 'MOCAMBOLA' | 'PROVINCIAL' | 'DISTRITAL';
@@ -114,6 +115,11 @@ export interface BetItem {
   outcome: '1' | 'X' | '2' | string;
   oddsAtBetTime: number;
   status: 'PENDING' | 'WON' | 'LOST' | 'VOID';
+  selectionLabel?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  selection?: string;
+  odds?: number;
 }
 
 export interface Bet {
@@ -135,7 +141,7 @@ export interface WalletTransaction {
   id: string;
   walletId: string;
   userId: string;
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'BET' | 'WIN' | 'REFUND' | 'ADJUSTMENT' | 'WINNING_PAYOUT';
   amount: number;
   previousBalance: number;
   nextBalance: number;
@@ -179,6 +185,10 @@ export interface AuditLog {
   newValue?: string;
   ip: string;
   timestamp: string;
+  entityType?: string;
+  newData?: any;
+  previousData?: any;
+  ipAddress?: string;
 }
 
 export interface DailyReportItem {
@@ -306,6 +316,7 @@ export interface RiskOverview {
   totalPossiblePayout: number;
   totalNetExposure: number;
   highRiskMarketsCount: number;
+  highRiskCount?: number;
   mediumRiskMarketsCount: number;
   markets: MarketRisk[];
   alerts: {

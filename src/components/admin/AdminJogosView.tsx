@@ -248,9 +248,10 @@ export const AdminJogosView: React.FC<AdminJogosViewProps> = ({
               </tr>
             ) : (
               filteredMatches.map((m) => {
-                const h = m.markets?.find((mk) => mk.type === '1X2')?.odds?.find((o) => o.name === '1')?.value;
-                const d = m.markets?.find((mk) => mk.type === '1X2')?.odds?.find((o) => o.name === 'X')?.value;
-                const a = m.markets?.find((mk) => mk.type === '1X2')?.odds?.find((o) => o.name === '2')?.value;
+                const mkt = m.markets?.find((mk) => mk.type === '1X2');
+                const h = mkt?.selections?.find((s) => s.outcome === '1')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === '1')?.value : undefined);
+                const d = mkt?.selections?.find((s) => s.outcome === 'X')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === 'X')?.value : undefined);
+                const a = mkt?.selections?.find((s) => s.outcome === '2')?.odds || (Array.isArray(mkt?.odds) ? mkt?.odds?.find((o: any) => o.name === '2')?.value : undefined);
 
                 return (
                   <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
