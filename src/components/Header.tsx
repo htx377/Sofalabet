@@ -18,6 +18,7 @@ import {
   Phone,
   Radio,
   Gift,
+  Download,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -171,6 +172,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Admin</span>
               </button>
             )}
+
+            <a
+              id="header-download-project-btn"
+              href="/sofalabet-projeto-completo.tar.gz"
+              download="sofalabet-projeto-completo.tar.gz"
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 transition-all flex items-center gap-1.5"
+              title="Baixar Pacote Completo do Projeto (.tar.gz)"
+            >
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+              <span className="hidden xl:inline">Baixar Código</span>
+              <span className="xl:hidden">Baixar</span>
+            </a>
           </nav>
 
           {/* Right Header Actions */}
@@ -266,10 +279,10 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base">
-                    Z
+                    S
                   </div>
                   <div>
-                    <span className="font-black text-white text-base tracking-tight">ZONA<span className="text-emerald-400">BET</span></span>
+                    <span className="font-black text-white text-base tracking-tight">SOFALA<span className="text-emerald-400">BET</span></span>
                     <span className="text-[10px] text-slate-400 block">Moçambique Oficial</span>
                   </div>
                 </div>
@@ -452,6 +465,17 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   )}
                 </button>
+
+                <a
+                  id="mobile-drawer-download-btn"
+                  href="/sofalabet-projeto-completo.tar.gz"
+                  download="sofalabet-projeto-completo.tar.gz"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>Baixar Código do Projeto (.tar.gz)</span>
+                </a>
               </div>
             </div>
 

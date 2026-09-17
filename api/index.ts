@@ -24,7 +24,7 @@ async function ensureHydrated() {
             if (status.connected) {
               const result = await supabaseService.pullDataFromSupabase();
               if (result.success) {
-                console.log(`[ZONABET Serverless] Dados hidratados: ${result.results?.users || 0} utilizadores.`);
+                console.log(`[SOFALABET Serverless] Dados hidratados: ${result.results?.users || 0} utilizadores.`);
               }
             }
           }
@@ -32,7 +32,7 @@ async function ensureHydrated() {
         timeoutPromise,
       ]);
     } catch (err: any) {
-      console.warn('[ZONABET Serverless] Hidratação inicial continuará em background:', err?.message || err);
+      console.warn('[SOFALABET Serverless] Hidratação inicial continuará em background:', err?.message || err);
     } finally {
       hydrated = true;
     }

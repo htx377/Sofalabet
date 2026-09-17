@@ -34,7 +34,7 @@ export function createExpressApp() {
   const healthHandler = (req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      service: 'ZONABET API',
+      service: 'SOFALABET API',
       currency: 'MZN',
       timestamp: new Date().toISOString(),
     });

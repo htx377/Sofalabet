@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('zonabet_token') || localStorage.getItem('sofalabet_token');

@@ -47,41 +47,58 @@ export const RealtimeProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
 
-    // Helper to transform Supabase matches row to Match interface
-    const transformSupabaseMatch = (row: any): Match => ({
-      id: row.id,
-      competitionId: row.competition_id || '',
-      competitionName: row.competition_name,
-      competitionCategory: row.competition_category,
-      homeTeam: row.home_team,
-      awayTeam: row.away_team,
-      kickoffDate: row.kickoff_date,
-      kickoffTime: row.kickoff_time,
-      status: row.status,
-      homeScore: row.home_score,
-      awayScore: row.away_score,
-      markets: Array.isArray(row.markets) ? row.markets : [],
-      createdAt: row.created_at || new Date().toISOString(),
-      updatedAt: row.updated_at || new Date().toISOString(),
-    });
+    // Helper to transform Supabase matches row to Match interface (supporting both start_time ISO and kickoff_date/time)
+    const transformSupabaseMatch = (row: any): Match => {
+      let kickoffDate = row.kickoff_date;
+      let kickoffTime = row.kickoff_time;
+
+      if (!kickoffDate && row.start_time) {
+        const rawTime = String(row.start_time);
+        if (rawTime.includes('T')) {
+          const parts = rawTime.split('T');
+          kickoffDate = parts[0];
+          kickoffTime = (parts[1] || '15:00').substring(0, 5);
+        } else {
+          kickoffDate = rawTime;
+          kickoffTime = '15:00';
+        }
+      }
+
+      return {
+        id: row.id,
+        competitionId: row.competition_id || '',
+        competitionName: row.competition_name || 'Moçambique',
+        competitionCategory: row.competition_category || 'Futebol',
+        homeTeam: row.home_team,
+        awayTeam: row.away_team,
+        kickoffDate: kickoffDate || 'Hoje',
+        kickoffTime: kickoffTime || '15:00',
+        status: row.status === 'PRE_MATCH' ? 'OPEN' : row.status || 'OPEN',
+        homeScore: row.home_score ?? 0,
+        awayScore: row.away_score ?? 0,
+        markets: Array.isArray(row.markets) ? row.markets : [],
+        createdAt: row.created_at || new Date().toISOString(),
+        updatedAt: row.updated_at || new Date().toISOString(),
+      };
+    };
 
     // Helper to transform Supabase bets row to Bet interface
     const transformSupabaseBet = (row: any): Bet => ({
       id: row.id,
       userId: row.user_id,
-      userName: row.user_name || 'Apostador ZONABET',
+      userName: row.user_name || 'Apostador SOFALABET',
       userEmail: row.user_email || '',
       type: row.type || 'SINGLE',
-      stake: Number(row.stake || 0),
+      stake: Number(row.stake || row.total_stake || 0),
       totalOdds: Number(row.total_odds || 1),
-      potentialReturn: Number(row.potential_win || 0),
+      potentialReturn: Number(row.potential_win || row.potential_return || 0),
       status: row.status || 'PENDING',
-      items: Array.isArray(row.selections) ? row.selections : [],
+      items: Array.isArray(row.selections) ? row.selections : Array.isArray(row.items) ? row.items : [],
       settledAt: row.settled_at || null,
-      createdAt: row.placed_at || new Date().toISOString(),
+      createdAt: row.placed_at || row.created_at || new Date().toISOString(),
     });
 
-    const channelName = `zonabet-realtime-${Date.now()}`;
+    const channelName = `sofalabet-realtime-${Date.now()}`;
     const channel = supabase.channel(channelName);
 
     // 1. Escutar alterações em tempo real na tabela de jogos (matches)

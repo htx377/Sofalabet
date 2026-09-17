@@ -318,7 +318,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
     setLoading(true);
     setActionError(null);
     try {
-      const [dashRes, matchRes, compRes, userRes, auditRes, betsRes, txRes, proofsRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.getAdminDashboard(),
         api.getMatches(),
         api.getCompetitions(),
@@ -332,14 +332,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
         loadRiskData(),
       ]);
 
-      setStats(dashRes.stats);
-      setMatches(matchRes.matches);
-      setCompetitions(compRes.competitions);
-      setUsers(userRes.users);
-      setAuditLogs(auditRes.logs);
-      setBets(betsRes.bets);
-      setTransactions(txRes.transactions);
-      setDepositProofs(proofsRes.proofs || []);
+      const [
+        dashSettled,
+        matchSettled,
+        compSettled,
+        userSettled,
+        auditSettled,
+        betsSettled,
+        txSettled,
+        proofsSettled,
+      ] = results;
+
+      if (dashSettled.status === 'fulfilled') setStats(dashSettled.value.stats);
+      if (matchSettled.status === 'fulfilled') setMatches(matchSettled.value.matches);
+      if (compSettled.status === 'fulfilled') setCompetitions(compSettled.value.competitions);
+      if (userSettled.status === 'fulfilled') setUsers(userSettled.value.users);
+      if (auditSettled.status === 'fulfilled') setAuditLogs(auditSettled.value.logs);
+      if (betsSettled.status === 'fulfilled') setBets(betsSettled.value.bets);
+      if (txSettled.status === 'fulfilled') setTransactions(txSettled.value.transactions);
+      if (proofsSettled.status === 'fulfilled') setDepositProofs(proofsSettled.value.proofs || []);
+
+      // Check if any critical API rejected
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0) {
+        console.warn(`[AdminPanel] ${failed.length} chamadas de dados falharam no carregamento isolado.`);
+      }
     } catch (err: any) {
       setActionError(err.message || 'Erro ao carregar dados do painel');
     } finally {
@@ -653,6 +670,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToSportsbook }) =>
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
+          <a
+            id="admin-download-project-btn"
+            href="/sofalabet-projeto-completo.tar.gz"
+            download="sofalabet-projeto-completo.tar.gz"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-xs font-bold rounded-xl border border-emerald-500/30 transition-colors flex items-center gap-1.5"
+            title="Baixar Pacote do Código (.tar.gz)"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Baixar Código</span>
+          </a>
         </div>
       </div>
 
