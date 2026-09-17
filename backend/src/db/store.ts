@@ -166,17 +166,17 @@ class DatabaseStore {
     ];
 
     // 3. Seed Users
-    // Super Admin 1: 872344381 / 12345678j (Super Administrador ZONABET)
+    // Super Admin 1: 872344381 / 12345678j (Super Administrador SOFALABET)
     const superAdminPasswordHash = '$2b$10$CpbLqPaBqO9ht/0BFSybaeVgk8AYOoUsbG.Khq0UGbLF31vNhRtpa'; // Admin123!
     const superAdminUser: User = {
       id: 'usr-superadmin-01',
-      name: 'Super Administrador ZONABET',
-      email: 'admin@zonabet.mz',
+      name: 'Super Administrador SOFALABET',
+      email: 'admin@sofalabet.co.mz',
       phone: '+258872344381',
       passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
       isBlocked: false,
-      referralCode: 'ZONA872344381',
+      referralCode: 'SOFA872344381',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -195,13 +195,13 @@ class DatabaseStore {
     const admin2PasswordHash = bcrypt.hashSync('Admin123!ChangeMe', 10);
     const admin2User: User = {
       id: 'usr-superadmin-02',
-      name: 'Gestor Geral ZONABET',
+      name: 'Gestor Geral SOFALABET',
       email: 'admin@example.com',
       phone: '+258872344380',
       passwordHash: admin2PasswordHash,
       role: 'ADMIN',
       isBlocked: false,
-      referralCode: 'ZONA872344380',
+      referralCode: 'SOFA872344380',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -218,13 +218,13 @@ class DatabaseStore {
 
     const userAdminAccount: User = {
       id: 'usr-superadmin-03',
-      name: 'Administrador ZONABET (Isa)',
+      name: 'Administrador SOFALABET (Isa)',
       email: 'isapsiqui377@gmail.com',
       phone: '+258872344382',
       passwordHash: superAdminPasswordHash,
       role: 'ADMIN',
       isBlocked: false,
-      referralCode: 'ZONA872344382',
+      referralCode: 'SOFA872344382',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
