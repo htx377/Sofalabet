@@ -282,7 +282,7 @@ export const Header: React.FC<HeaderProps> = ({
                     S
                   </div>
                   <div>
-                    <span className="font-black text-white text-base tracking-tight">SOFALA<span className="text-emerald-400">BET</span></span>
+                    <span className="font-black text-white text-base tracking-tight">ZONA<span className="text-emerald-400">BET</span></span>
                     <span className="text-[10px] text-slate-400 block">Moçambique Oficial</span>
                   </div>
                 </div>
