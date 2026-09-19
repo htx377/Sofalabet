@@ -34,7 +34,29 @@ async function runTestSuite() {
     const admin = db.getUserByEmail('admin@example.com');
     assert(!!admin && admin.role === 'ADMIN', 'Seed Admin account exists with ADMIN role');
 
-    const testUser = db.getUserByEmail('apostador@exemplo.co.mz');
+    let testUser = db.getUserByEmail('apostador@exemplo.co.mz');
+    if (!testUser) {
+      const userPasswordHash = bcrypt.hashSync('User123!', 10);
+      testUser = {
+        id: 'usr-test-runner',
+        name: 'Apostador Teste',
+        email: 'apostador@exemplo.co.mz',
+        phone: '+258840000000',
+        passwordHash: userPasswordHash,
+        role: 'USER',
+        isBlocked: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      db.users.set(testUser.id, testUser);
+      db.wallets.set(testUser.id, {
+        id: 'wal-test-runner',
+        userId: testUser.id,
+        balance: 10000.00,
+        lockedBalance: 0,
+        updatedAt: new Date().toISOString(),
+      });
+    }
     assert(!!testUser && testUser.role === 'USER', 'Seed User account exists with USER role');
 
     const currentWallet = await WalletService.getWallet(testUser!.id);

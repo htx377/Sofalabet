@@ -425,6 +425,61 @@ class SupabaseService {
         results.settings = 1;
       }
 
+      // 3. Matches & Markets
+      const { data: matchesData, error: mErr } = await this.client
+        .from('matches')
+        .select(`
+          *,
+          markets (
+            *,
+            selections (*)
+          )
+        `);
+      if (!mErr && matchesData && matchesData.length > 0) {
+        for (const m of matchesData) {
+          const rawTime = m.start_time || '';
+          const dateParts = rawTime.includes('T') ? rawTime.split('T') : [rawTime || 'Hoje', '15:00'];
+          const comp = dbStore.competitions.find(c => c.id === m.competition_id);
+          const compCategory = (m.competition_category && m.competition_category !== 'Futebol')
+            ? m.competition_category
+            : (comp?.category || (m.competition_id?.toLowerCase().includes('prov') || m.competition_name?.toLowerCase().includes('provincial') ? 'PROVINCIAL' : m.competition_id?.toLowerCase().includes('dist') || m.competition_name?.toLowerCase().includes('distrital') ? 'DISTRITAL' : 'MOCAMBOLA'));
+
+          const matchObj: Match = {
+            id: m.id,
+            competitionId: m.competition_id,
+            competitionName: m.competition_name || comp?.name || 'Moçambola',
+            competitionCategory: compCategory as any,
+            homeTeam: m.home_team,
+            awayTeam: m.away_team,
+            kickoffDate: dateParts[0] || 'Hoje',
+            kickoffTime: (dateParts[1] || '15:00').substring(0, 5),
+            status: m.status === 'PRE_MATCH' ? 'OPEN' : m.status || 'OPEN',
+            homeScore: m.home_score,
+            awayScore: m.away_score,
+            isFeatured: m.is_featured ?? false,
+            markets: (m.markets || []).map((mk: any) => ({
+              id: mk.id,
+              name: mk.name,
+              type: mk.type,
+              status: mk.status || 'ACTIVE',
+              maxExposure: mk.max_exposure,
+              maxStake: mk.max_stake,
+              selections: (mk.selections || []).map((s: any) => ({
+                id: s.id,
+                outcome: s.outcome,
+                label: s.label,
+                odds: Number(s.odds || 1.01),
+                status: s.status || 'ACTIVE'
+              }))
+            })),
+            createdAt: m.created_at || new Date().toISOString(),
+            updatedAt: m.created_at || new Date().toISOString()
+          };
+          dbStore.matches.set(m.id, matchObj);
+          results.matches++;
+        }
+      }
+
       return { success: true, results };
     } catch (err: any) {
       console.error('[Supabase Pull] Erro ao importar dados:', err);

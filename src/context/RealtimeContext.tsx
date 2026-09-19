@@ -1,28 +1,29 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { getSupabase } from '../lib/supabase.ts';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Match, Bet } from '../types.ts';
-import { useAuth } from './AuthContext.tsx';
 
 interface RealtimeContextType {
   isLiveConnected: boolean;
   lastEventTime: number | null;
   latestUpdatedMatchId: string | null;
   latestUpdatedBetId: string | null;
-  // Subscribers callback registration
   onMatchChange: (handler: (match: Match, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void) => () => void;
   onBetChange: (handler: (bet: Bet, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void) => () => void;
+  triggerMatchUpdate?: (match: Match, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void;
+  triggerBetUpdate?: (bet: Bet, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void;
 }
 
 const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined);
 
+/**
+ * Provedor de contexto local ZONABET (100% manual e offline-first).
+ * Sem WebSockets, sem polling e sem dependência de serviços em tempo real externos.
+ */
 export const RealtimeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, refreshUserData } = useAuth();
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [lastEventTime, setLastEventTime] = useState<number | null>(null);
   const [latestUpdatedMatchId, setLatestUpdatedMatchId] = useState<string | null>(null);
   const [latestUpdatedBetId, setLatestUpdatedBetId] = useState<string | null>(null);
 
-  // Subscribed callbacks
+  // Callbacks locais
   const matchHandlers = React.useRef<Set<(match: Match, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void>>(new Set());
   const betHandlers = React.useRef<Set<(bet: Bet, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => void>>(new Set());
 
@@ -40,161 +41,37 @@ export const RealtimeProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   };
 
-  useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      setIsLiveConnected(false);
-      return;
-    }
-
-    // Helper to transform Supabase matches row to Match interface (supporting both start_time ISO and kickoff_date/time)
-    const transformSupabaseMatch = (row: any): Match => {
-      let kickoffDate = row.kickoff_date;
-      let kickoffTime = row.kickoff_time;
-
-      if (!kickoffDate && row.start_time) {
-        const rawTime = String(row.start_time);
-        if (rawTime.includes('T')) {
-          const parts = rawTime.split('T');
-          kickoffDate = parts[0];
-          kickoffTime = (parts[1] || '15:00').substring(0, 5);
-        } else {
-          kickoffDate = rawTime;
-          kickoffTime = '15:00';
-        }
-      }
-
-      return {
-        id: row.id,
-        competitionId: row.competition_id || '',
-        competitionName: row.competition_name || 'Moçambique',
-        competitionCategory: row.competition_category || 'Futebol',
-        homeTeam: row.home_team,
-        awayTeam: row.away_team,
-        kickoffDate: kickoffDate || 'Hoje',
-        kickoffTime: kickoffTime || '15:00',
-        status: row.status === 'PRE_MATCH' ? 'OPEN' : row.status || 'OPEN',
-        homeScore: row.home_score ?? 0,
-        awayScore: row.away_score ?? 0,
-        markets: Array.isArray(row.markets) ? row.markets : [],
-        createdAt: row.created_at || new Date().toISOString(),
-        updatedAt: row.updated_at || new Date().toISOString(),
-      };
-    };
-
-    // Helper to transform Supabase bets row to Bet interface
-    const transformSupabaseBet = (row: any): Bet => ({
-      id: row.id,
-      userId: row.user_id,
-      userName: row.user_name || 'Apostador ZONABET',
-      userEmail: row.user_email || '',
-      type: row.type || 'SINGLE',
-      stake: Number(row.stake || row.total_stake || 0),
-      totalOdds: Number(row.total_odds || 1),
-      potentialReturn: Number(row.potential_win || row.potential_return || 0),
-      status: row.status || 'PENDING',
-      items: Array.isArray(row.selections) ? row.selections : Array.isArray(row.items) ? row.items : [],
-      settledAt: row.settled_at || null,
-      createdAt: row.placed_at || row.created_at || new Date().toISOString(),
+  const triggerMatchUpdate = (match: Match, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => {
+    setLastEventTime(Date.now());
+    setLatestUpdatedMatchId(match.id);
+    matchHandlers.current.forEach((h) => {
+      try {
+        h(match, eventType);
+      } catch {}
     });
+  };
 
-    const channelName = `zonabet-realtime-${Date.now()}`;
-    const channel = supabase.channel(channelName);
-
-    // 1. Escutar alterações em tempo real na tabela de jogos (matches)
-    channel.on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'matches' },
-      (payload) => {
-        console.log('[Supabase Realtime] Evento na tabela matches:', payload.eventType, payload.new);
-        setLastEventTime(Date.now());
-        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
-        const rawMatch = (eventType === 'DELETE' ? payload.old : payload.new) as any;
-        if (!rawMatch || !rawMatch.id) return;
-
-        const matchObj = transformSupabaseMatch(rawMatch);
-        setLatestUpdatedMatchId(matchObj.id);
-
-        // Disparar handlers registados
-        matchHandlers.current.forEach((handler) => {
-          try {
-            handler(matchObj, eventType);
-          } catch (e) {
-            console.error('[Supabase Realtime] Erro no handler de matches:', e);
-          }
-        });
-      }
-    );
-
-    // 2. Escutar alterações em tempo real na tabela de apostas (bets)
-    channel.on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'bets' },
-      (payload) => {
-        console.log('[Supabase Realtime] Evento na tabela bets:', payload.eventType, payload.new);
-        setLastEventTime(Date.now());
-        const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
-        const rawBet = (eventType === 'DELETE' ? payload.old : payload.new) as any;
-        if (!rawBet || !rawBet.id) return;
-
-        const betObj = transformSupabaseBet(rawBet);
-        setLatestUpdatedBetId(betObj.id);
-
-        // Se a aposta pertencer ao utilizador logado e tiver sido liquidada, atualizar dados de utilizador/saldo
-        if (user && rawBet.user_id === user.id) {
-          refreshUserData().catch(console.error);
-        }
-
-        // Disparar handlers registados
-        betHandlers.current.forEach((handler) => {
-          try {
-            handler(betObj, eventType);
-          } catch (e) {
-            console.error('[Supabase Realtime] Erro no handler de bets:', e);
-          }
-        });
-      }
-    );
-
-    // 3. Escutar alterações de saldo na tabela de carteiras (wallets) para o utilizador
-    if (user) {
-      channel.on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'wallets', filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          console.log('[Supabase Realtime] Evento na carteira do utilizador:', payload.new);
-          setLastEventTime(Date.now());
-          refreshUserData().catch(console.error);
-        }
-      );
-    }
-
-    channel.subscribe((status) => {
-      console.log('[Supabase Realtime] Estado da subscrição:', status);
-      if (status === 'SUBSCRIBED') {
-        setIsLiveConnected(true);
-      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        setIsLiveConnected(false);
-      }
+  const triggerBetUpdate = (bet: Bet, eventType: 'INSERT' | 'UPDATE' | 'DELETE') => {
+    setLastEventTime(Date.now());
+    setLatestUpdatedBetId(bet.id);
+    betHandlers.current.forEach((h) => {
+      try {
+        h(bet, eventType);
+      } catch {}
     });
-
-    return () => {
-      console.log('[Supabase Realtime] Desmontando canal...');
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-      setIsLiveConnected(false);
-    };
-  }, [user?.id]);
+  };
 
   return (
     <RealtimeContext.Provider
       value={{
-        isLiveConnected,
+        isLiveConnected: false,
         lastEventTime,
         latestUpdatedMatchId,
         latestUpdatedBetId,
         onMatchChange,
         onBetChange,
+        triggerMatchUpdate,
+        triggerBetUpdate,
       }}
     >
       {children}

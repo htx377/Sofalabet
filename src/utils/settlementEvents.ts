@@ -67,7 +67,6 @@ export function subscribeToSettlement(callback: (payload: SettlementEventPayload
     }
   };
   window.addEventListener('zonabet:match_settled', handleCustomEvent);
-  window.addEventListener('sofalabet:match_settled', handleCustomEvent);
 
   // BroadcastChannel listener
   const handleChannelMsg = (event: MessageEvent<SettlementEventPayload>) => {
@@ -81,7 +80,7 @@ export function subscribeToSettlement(callback: (payload: SettlementEventPayload
 
   // Storage event listener (fires in other tabs when localStorage changes)
   const handleStorage = (event: StorageEvent) => {
-    if ((event.key === 'zonabet_last_settlement' || event.key === 'sofalabet_last_settlement') && event.newValue) {
+    if (event.key === 'zonabet_last_settlement' && event.newValue) {
       try {
         const parsed = JSON.parse(event.newValue) as SettlementEventPayload;
         callback(parsed);
@@ -94,7 +93,6 @@ export function subscribeToSettlement(callback: (payload: SettlementEventPayload
 
   return () => {
     window.removeEventListener('zonabet:match_settled', handleCustomEvent);
-    window.removeEventListener('sofalabet:match_settled', handleCustomEvent);
     if (channel) {
       channel.removeEventListener('message', handleChannelMsg);
     }

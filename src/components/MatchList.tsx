@@ -8,6 +8,20 @@ import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio, Lock, Targ
 import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
 import { subscribeToSettlement } from '../utils/settlementEvents.ts';
 
+export const DEFAULT_MOZ_COMPETITIONS: Competition[] = [
+  { id: 'comp-mocambola', name: 'Moçambola', country: 'Moçambique (Nacional)', code: 'MOC', category: 'MOCAMBOLA' },
+  { id: 'comp-prov-sofala', name: 'Campeonato Provincial de Sofala', country: 'Sofala, Moçambique', code: 'CPS', category: 'PROVINCIAL' },
+  { id: 'comp-prov-manica', name: 'Campeonato Provincial de Manica', country: 'Manica, Moçambique', code: 'CPM', category: 'PROVINCIAL' },
+  { id: 'comp-prov-nampula', name: 'Campeonato Provincial de Nampula', country: 'Nampula, Moçambique', code: 'CPN', category: 'PROVINCIAL' },
+  { id: 'comp-prov-maputo', name: 'Campeonato Provincial de Maputo', country: 'Maputo, Moçambique', code: 'CPMP', category: 'PROVINCIAL' },
+  { id: 'comp-dist-beira', name: 'Campeonato Distrital da Beira', country: 'Distrito da Beira, Sofala', code: 'CDB', category: 'DISTRITAL' },
+  { id: 'comp-dist-dondo', name: 'Campeonato Distrital do Dondo', country: 'Distrito do Dondo, Sofala', code: 'CDD', category: 'DISTRITAL' },
+  { id: 'comp-dist-nhamatanda', name: 'Campeonato Distrital de Nhamatanda', country: 'Distrito de Nhamatanda, Sofala', code: 'CDN', category: 'DISTRITAL' },
+  { id: 'comp-dist-marromeu', name: 'Campeonato Distrital de Marromeu', country: 'Distrito de Marromeu, Sofala', code: 'CDM', category: 'DISTRITAL' },
+  { id: 'comp-dist-muanza', name: 'Campeonato Distrital de Muanza', country: 'Distrito de Muanza, Sofala', code: 'CDMU', category: 'DISTRITAL' },
+  { id: 'comp-dist-cheringoma', name: 'Campeonato Distrital de Cheringoma', country: 'Distrito de Cheringoma, Sofala', code: 'CDCH', category: 'DISTRITAL' },
+];
+
 export const MatchList: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
@@ -20,10 +34,12 @@ export const MatchList: React.FC = () => {
   const [competitions, setCompetitions] = useState<Competition[]>(() => {
     try {
       const cached = sessionStorage.getItem('zonabet_comp_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_MOZ_COMPETITIONS;
   });
   const [selectedTier, setSelectedTier] = useState<'ALL' | CompetitionCategory>('ALL');
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
@@ -37,18 +53,9 @@ export const MatchList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [pulsingMatchId, setPulsingMatchId] = useState<string | null>(null);
   const [expandedCorrectScore, setExpandedCorrectScore] = useState<Record<string, boolean>>({});
-  const [, setTick] = useState<number>(Date.now());
 
   const { items: slipItems, toggleSelection, updateSelectionOdds } = useBetSlip();
-  const { isLiveConnected, onMatchChange } = useRealtime();
-
-  // Relógio a cada 10 segundos para verificar imediatamente o início das partidas e bloquear apostas
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick(Date.now());
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []);
+  const { onMatchChange } = useRealtime();
 
   const fetchMatches = async (silent = false, retryCount = 0) => {
     if (!silent && matches.length === 0) setLoading(true);
@@ -98,11 +105,9 @@ export const MatchList: React.FC = () => {
     fetchMatches();
   }, [selectedCompetition, selectedTier]);
 
-  // Subscrição em tempo real com o Supabase Realtime
+  // Subscrição a alterações de jogos
   useEffect(() => {
     const unsubscribe = onMatchChange((updatedMatch, eventType) => {
-      console.log('[MatchList Realtime] Jogo recebido via Supabase:', updatedMatch.id, eventType);
-
       // Efeito visual de destaque na partida atualizada
       setPulsingMatchId(updatedMatch.id);
       setTimeout(() => {
@@ -263,7 +268,7 @@ export const MatchList: React.FC = () => {
                 : 'bg-transparent border border-slate-800 text-slate-400 hover:bg-slate-800/80'
             }`}
           >
-            Todas de ${selectedTier === 'MOCAMBOLA' ? 'Moçambola' : selectedTier === 'PROVINCIAL' ? 'Provinciais' : 'Distritais'}
+            Todas ({selectedTier === 'MOCAMBOLA' ? 'Moçambola' : selectedTier === 'PROVINCIAL' ? 'Provinciais' : 'Distritais'})
           </button>
           {visibleCompetitions.map((comp) => (
             <button
@@ -317,9 +322,9 @@ export const MatchList: React.FC = () => {
       {!loading && matches.length === 0 && (
         <div className="py-12 text-center bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
           <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-          <p className="text-sm font-bold text-slate-300">Nenhum jogo disponível nesta categoria</p>
+          <p className="text-sm font-bold text-slate-300">Não existem jogos cadastrados.</p>
           <p className="text-xs text-slate-500 mt-1">
-            Novos jogos serão agendados pelo administrador em breve.
+            Novos jogos serão agendados pelo administrador manualmente.
           </p>
         </div>
       )}
@@ -445,11 +450,16 @@ export const MatchList: React.FC = () => {
                         1
                       </span>
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
-                        {homeSelection.odds.toFixed(2)}
+                        {homeSelection.odds && homeSelection.odds > 0 ? homeSelection.odds.toFixed(2) : '-'}
                       </span>
                       {!isBettingOpen && (
                         <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
                           <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
+                      {isBettingOpen && (!homeSelection.odds || homeSelection.odds <= 0) && (
+                        <span className="text-[8px] font-bold text-slate-500 mt-0.5">
+                          Sem odd
                         </span>
                       )}
                     </button>
@@ -458,7 +468,7 @@ export const MatchList: React.FC = () => {
                   {/* X: Draw */}
                   {drawSelection && (
                     <button
-                      disabled={!isBettingOpen}
+                      disabled={!isBettingOpen || !drawSelection.odds || drawSelection.odds <= 0}
                       onClick={() =>
                         toggleSelection({
                           matchId: match.id,
@@ -476,7 +486,7 @@ export const MatchList: React.FC = () => {
                       className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all touch-manipulation min-h-[46px] ${
                         isSelectionInSlip(drawSelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
-                          : isBettingOpen
+                          : isBettingOpen && drawSelection.odds && drawSelection.odds > 0
                           ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white active:scale-95'
                           : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                       }`}
@@ -487,11 +497,16 @@ export const MatchList: React.FC = () => {
                         X
                       </span>
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
-                        {drawSelection.odds.toFixed(2)}
+                        {drawSelection.odds && drawSelection.odds > 0 ? drawSelection.odds.toFixed(2) : '-'}
                       </span>
                       {!isBettingOpen && (
                         <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
                           <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
+                      {isBettingOpen && (!drawSelection.odds || drawSelection.odds <= 0) && (
+                        <span className="text-[8px] font-bold text-slate-500 mt-0.5">
+                          Sem odd
                         </span>
                       )}
                     </button>
@@ -500,7 +515,7 @@ export const MatchList: React.FC = () => {
                   {/* 2: Away Win */}
                   {awaySelection && (
                     <button
-                      disabled={!isBettingOpen}
+                      disabled={!isBettingOpen || !awaySelection.odds || awaySelection.odds <= 0}
                       onClick={() =>
                         toggleSelection({
                           matchId: match.id,
@@ -518,7 +533,7 @@ export const MatchList: React.FC = () => {
                       className={`group relative py-2 px-1.5 rounded-xl border flex flex-col items-center justify-center transition-all touch-manipulation min-h-[46px] ${
                         isSelectionInSlip(awaySelection.id)
                           ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20'
-                          : isBettingOpen
+                          : isBettingOpen && awaySelection.odds && awaySelection.odds > 0
                           ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/80 text-white active:scale-95'
                           : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                       }`}
@@ -529,11 +544,16 @@ export const MatchList: React.FC = () => {
                         2
                       </span>
                       <span className="text-xs sm:text-sm font-black tracking-tight leading-none">
-                        {awaySelection.odds.toFixed(2)}
+                        {awaySelection.odds && awaySelection.odds > 0 ? awaySelection.odds.toFixed(2) : '-'}
                       </span>
                       {!isBettingOpen && (
                         <span className="text-[8px] font-bold text-slate-500 flex items-center gap-0.5 mt-0.5">
                           <Lock className="w-2.5 h-2.5" /> Bloqueado
+                        </span>
+                      )}
+                      {isBettingOpen && (!awaySelection.odds || awaySelection.odds <= 0) && (
+                        <span className="text-[8px] font-bold text-slate-500 mt-0.5">
+                          Sem odd
                         </span>
                       )}
                     </button>
@@ -587,7 +607,7 @@ export const MatchList: React.FC = () => {
                             return (
                               <button
                                 key={sel.id}
-                                disabled={!isBettingOpen}
+                                disabled={!isBettingOpen || !sel.odds || sel.odds <= 0}
                                 onClick={() =>
                                   toggleSelection({
                                     matchId: match.id,
@@ -605,7 +625,7 @@ export const MatchList: React.FC = () => {
                                 className={`py-2 px-2.5 rounded-xl border flex items-center justify-between transition-all ${
                                   inSlip
                                     ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black shadow-md'
-                                    : isBettingOpen
+                                    : isBettingOpen && sel.odds && sel.odds > 0
                                     ? 'bg-slate-800/80 hover:bg-slate-750 border-slate-700/70 text-white active:scale-95'
                                     : 'bg-slate-900/60 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
                                 }`}
@@ -613,8 +633,8 @@ export const MatchList: React.FC = () => {
                                 <span className={`text-xs font-extrabold ${inSlip ? 'text-slate-950' : 'text-slate-200'}`}>
                                   {sel.label}
                                 </span>
-                                <span className={`text-xs font-mono font-black ${inSlip ? 'text-slate-950' : 'text-cyan-400'}`}>
-                                  @{sel.odds.toFixed(2)}
+                                <span className={`text-xs font-mono font-black ${inSlip ? 'text-slate-950' : sel.odds && sel.odds > 0 ? 'text-cyan-400' : 'text-slate-500 text-[10px]'}`}>
+                                  {sel.odds && sel.odds > 0 ? `@${sel.odds.toFixed(2)}` : 'Sem odd'}
                                 </span>
                               </button>
                             );

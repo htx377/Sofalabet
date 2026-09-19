@@ -37,16 +37,16 @@ const DEFAULT_SETTINGS: SystemSettings = {
     enabled: true,
     phone: '+258872344381',
     message: 'Olá, preciso de apoio.',
-    buttonText: 'Apoio SOFALABET',
+    buttonText: 'Apoio ZONABET',
     position: 'bottom-right',
   },
 
   // Interface & Branding
-  platformName: 'SOFALABET',
+  platformName: 'ZONABET',
   announcementNotice:
-    'Bem-vindo à SOFALABET • Apostas em Futebol Moçambicano (Moçambola, Provinciais e Distritais) • Levantamentos rápidos via e-Mola',
+    'Bem-vindo à ZONABET • Apostas em Futebol Moçambicano (Moçambola, Provinciais e Distritais) • Levantamentos rápidos via e-Mola',
   announcementActive: true,
-  supportEmail: 'suporte@sofalabet.co.mz',
+  supportEmail: 'suporte@zonabet.co.mz',
   currencySymbol: 'MT',
   currencyCode: 'MZN',
 };

@@ -82,7 +82,7 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
   // WhatsApp
   const [waEnabled, setWaEnabled] = useState(true);
   const [waPhone, setWaPhone] = useState('+258872344381');
-  const [waMessage, setWaMessage] = useState('Olá SOFALABET! Preciso de ajuda com a minha conta.');
+  const [waMessage, setWaMessage] = useState('Olá ZONABET! Preciso de ajuda com a minha conta.');
   const [waButtonText, setWaButtonText] = useState('Apoio WhatsApp');
   const [waPosition, setWaPosition] = useState<'bottom-right' | 'bottom-left'>('bottom-right');
 
@@ -692,7 +692,7 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Conta e-Mola Oficial SOFALABET</h3>
+              <h3 className="text-base font-black text-white">Conta e-Mola Oficial ZONABET</h3>
               <p className="text-xs text-slate-400">
                 Canal autorizado para recebimento de depósitos e validação de comprovativos.
               </p>
@@ -964,7 +964,7 @@ export const AdminConfiguracoesView: React.FC<AdminConfiguracoesViewProps> = ({
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs text-slate-300 font-bold font-mono">Script SQL DDL (Tabelas SOFALABET):</span>
+                <span className="text-xs text-slate-300 font-bold font-mono">Script SQL DDL (Tabelas ZONABET):</span>
               </div>
               <button
                 onClick={handleCopySql}

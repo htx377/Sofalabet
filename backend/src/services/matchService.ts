@@ -28,21 +28,23 @@ export class MatchService {
         if (filters?.competitionId) {
           query = query.eq('competition_id', filters.competitionId);
         }
-        if (filters?.category) {
-          query = query.eq('competition_category', filters.category);
-        }
 
         const { data: matchesData, error } = await query.order('start_time', { ascending: true });
         
         if (!error && matchesData && matchesData.length > 0) {
-          return matchesData.map((m: any) => {
+          const mapped = matchesData.map((m: any) => {
             const rawTime = m.start_time || '';
             const dateParts = rawTime.includes('T') ? rawTime.split('T') : [rawTime || 'Hoje', '15:00'];
+            const comp = db.competitions.find(c => c.id === m.competition_id);
+            const compCategory = (m.competition_category && m.competition_category !== 'Futebol')
+              ? m.competition_category
+              : (comp?.category || (m.competition_id?.toLowerCase().includes('prov') || m.competition_name?.toLowerCase().includes('provincial') ? 'PROVINCIAL' : m.competition_id?.toLowerCase().includes('dist') || m.competition_name?.toLowerCase().includes('distrital') ? 'DISTRITAL' : 'MOCAMBOLA'));
+
             return {
               id: m.id,
               competitionId: m.competition_id,
-              competitionName: m.competition_name,
-              competitionCategory: m.competition_category || 'Futebol',
+              competitionName: m.competition_name || comp?.name || 'Moçambola',
+              competitionCategory: compCategory,
               homeTeam: m.home_team,
               awayTeam: m.away_team,
               kickoffDate: dateParts[0] || 'Hoje',
@@ -70,6 +72,11 @@ export class MatchService {
               updatedAt: m.created_at || new Date().toISOString()
             };
           });
+
+          if (filters?.category && filters.category !== 'ALL') {
+            return mapped.filter((m: any) => m.competitionCategory === filters.category);
+          }
+          return mapped;
         }
       }
     } catch (supaErr) {
@@ -77,7 +84,14 @@ export class MatchService {
     }
 
     // Fallback seguro aos dados em memória com todos os filtros respeitados
-    let localMatches = Array.from(db.matches.values());
+    let localMatches = Array.from(db.matches.values()).map(m => {
+      const comp = db.competitions.find(c => c.id === m.competitionId);
+      const compCategory = (m.competitionCategory && m.competitionCategory !== 'Futebol')
+        ? m.competitionCategory
+        : (comp?.category || (m.competitionId?.toLowerCase().includes('prov') || m.competitionName?.toLowerCase().includes('provincial') ? 'PROVINCIAL' : m.competitionId?.toLowerCase().includes('dist') || m.competitionName?.toLowerCase().includes('distrital') ? 'DISTRITAL' : 'MOCAMBOLA'));
+      return { ...m, competitionCategory: compCategory as any };
+    });
+
     if (filters?.competitionId) {
       localMatches = localMatches.filter(m => m.competitionId === filters.competitionId);
     }
@@ -109,11 +123,16 @@ export class MatchService {
         if (!error && data) {
           const rawTime = data.start_time || '';
           const dateParts = rawTime.includes('T') ? rawTime.split('T') : [rawTime || 'Hoje', '15:00'];
+          const comp = db.competitions.find(c => c.id === data.competition_id);
+          const compCategory = (data.competition_category && data.competition_category !== 'Futebol')
+            ? data.competition_category
+            : (comp?.category || (data.competition_id?.toLowerCase().includes('prov') || data.competition_name?.toLowerCase().includes('provincial') ? 'PROVINCIAL' : data.competition_id?.toLowerCase().includes('dist') || data.competition_name?.toLowerCase().includes('distrital') ? 'DISTRITAL' : 'MOCAMBOLA'));
+
           return {
             id: data.id,
             competitionId: data.competition_id,
-            competitionName: data.competition_name,
-            competitionCategory: data.competition_category || 'Futebol',
+            competitionName: data.competition_name || comp?.name || 'Moçambola',
+            competitionCategory: compCategory,
             homeTeam: data.home_team,
             awayTeam: data.away_team,
             kickoffDate: dateParts[0] || 'Hoje',
@@ -165,11 +184,23 @@ export class MatchService {
   }): Promise<Match> {
     const { homeTeam, awayTeam, kickoffDate, kickoffTime, odds } = params;
 
+    const comp = db.competitions.find(c => c.id === params.competitionId);
+    let compCategory: 'MOCAMBOLA' | 'PROVINCIAL' | 'DISTRITAL' = 'MOCAMBOLA';
+    if (comp?.category) {
+      compCategory = comp.category as any;
+    } else if (params.competitionId?.toLowerCase().includes('prov')) {
+      compCategory = 'PROVINCIAL';
+    } else if (params.competitionId?.toLowerCase().includes('dist')) {
+      compCategory = 'DISTRITAL';
+    }
+
+    const compName = comp?.name || params.description || (compCategory === 'PROVINCIAL' ? 'Campeonato Provincial' : compCategory === 'DISTRITAL' ? 'Campeonato Distrital' : 'Moçambola');
+
     const match: Match = {
       id: `m-${Date.now()}`,
       competitionId: params.competitionId,
-      competitionName: params.description || 'Moçambola',
-      competitionCategory: 'Futebol',
+      competitionName: compName,
+      competitionCategory: compCategory,
       homeTeam,
       awayTeam,
       kickoffDate,
@@ -215,6 +246,7 @@ export class MatchService {
           id: match.id,
           competition_id: match.competitionId,
           competition_name: match.competitionName,
+          competition_category: match.competitionCategory,
           home_team: match.homeTeam,
           away_team: match.awayTeam,
           start_time: `${kickoffDate}T${kickoffTime}:00Z`,
@@ -409,31 +441,18 @@ export class MatchService {
 
   private static generateDefaultCorrectScores(home: string, away: string): Selection[] {
     const baseId = `s-cs-${Date.now()}`;
-    const scores = [
-      { score: '0-0', odds: 8.0 },
-      { score: '1-0', odds: 6.5 },
-      { score: '1-1', odds: 6.0 },
-      { score: '0-1', odds: 7.5 },
-      { score: '2-0', odds: 10.0 },
-      { score: '2-1', odds: 9.0 },
-      { score: '1-2', odds: 11.0 },
-      { score: '0-2', odds: 14.0 },
-      { score: '2-2', odds: 12.0 },
-      { score: '3-0', odds: 18.0 },
-      { score: '3-1', odds: 16.0 },
-      { score: '3-2', odds: 22.0 },
-      { score: '0-3', odds: 25.0 },
-      { score: '1-3', odds: 22.0 },
-      { score: '2-3', odds: 28.0 },
-      { score: '3-3', odds: 45.0 },
-      { score: 'OTHER', odds: 15.0, label: 'Qualquer Outro' }
+    const scoreOptions = [
+      '0-0', '1-0', '0-1', '1-1', '2-0', '0-2', '2-1', '1-2', '2-2',
+      '3-0', '0-3', '3-1', '1-3', '3-2', '2-3', '3-3',
+      '4-0', '0-4', '4-1', '1-4', '4-2', '2-4', '4-3', '3-4', '4-4',
+      '5-0', '0-5', '5-1', '1-5', '5-2', '2-5', '5-3', '3-5', '5-4', '4-5', '5-5'
     ];
 
-    return scores.map((s, idx) => ({
+    return scoreOptions.map((score, idx) => ({
       id: `${baseId}-${idx}`,
-      outcome: s.score,
-      label: s.label || s.score,
-      odds: s.odds,
+      outcome: score,
+      label: score,
+      odds: 0, // Odds manuais: o administrador define no painel administrativo
       status: 'ACTIVE'
     }));
   }

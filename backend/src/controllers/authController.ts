@@ -48,7 +48,7 @@ export class AuthController {
       formattedPhone = `+258 ${cleanDigits.slice(0, 2)} ${cleanDigits.slice(2, 5)} ${cleanDigits.slice(5)}`;
     }
 
-    const isAdminEmail = (email && (email.toLowerCase() === 'isapsiqui377@gmail.com' || email.toLowerCase().includes('admin@zonabet.mz') || email.toLowerCase().includes('admin@sofalabet.mz') || email.toLowerCase() === 'admin@example.com'));
+    const isAdminEmail = (email && (email.toLowerCase() === 'isapsiqui377@gmail.com' || email.toLowerCase().includes('admin@zonabet.mz') || email.toLowerCase().includes('admin@zonabet.co.mz') || email.toLowerCase() === 'admin@example.com'));
     const isAdminPhone = cleanDigits.includes('872344381') || cleanDigits.includes('872344380');
     const assignedRole = (isAdminEmail || isAdminPhone) ? 'ADMIN' : 'USER';
 

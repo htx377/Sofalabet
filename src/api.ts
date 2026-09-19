@@ -1,26 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function getAuthToken(): string | null {
-  const token = localStorage.getItem('zonabet_token');
-  if (token) return token;
-
-  // Migração temporária de chaves antigas
-  const oldToken = localStorage.getItem('sofalabet_token');
-  if (oldToken) {
-    localStorage.setItem('zonabet_token', oldToken);
-    localStorage.removeItem('sofalabet_token');
-    return oldToken;
-  }
-  return null;
+  return localStorage.getItem('zonabet_token');
 }
 
 export function setAuthToken(token: string | null): void {
   if (token) {
     localStorage.setItem('zonabet_token', token);
-    localStorage.removeItem('sofalabet_token');
   } else {
     localStorage.removeItem('zonabet_token');
-    localStorage.removeItem('sofalabet_token');
   }
 }
 

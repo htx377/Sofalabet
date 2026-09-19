@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useBetSlip } from '../context/BetSlipContext.tsx';
-import { useRealtime } from '../context/RealtimeContext.tsx';
 import {
   Shield,
   Wallet as WalletIcon,
@@ -44,7 +43,6 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { items, setIsOpenMobile } = useBetSlip();
-  const { isLiveConnected } = useRealtime();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const logoClicksRef = React.useRef(0);
   const lastLogoClickTimeRef = React.useRef(0);
@@ -94,28 +92,19 @@ export const Header: React.FC<HeaderProps> = ({
           <div
             className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none active:opacity-90"
             onClick={handleLogoClick}
-            title="SOFALABET Moçambique"
+            title="ZONABET Moçambique"
           >
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center font-black text-base sm:text-xl text-slate-950 shadow-md shadow-emerald-500/20 shrink-0">
-              S
+              Z
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <span className="font-extrabold text-base sm:text-xl tracking-tight text-white">
-                  SOFALA<span className="text-emerald-400">BET</span>
+                  ZONA<span className="text-emerald-400">BET</span>
                 </span>
                 <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 uppercase tracking-wider">
                   MZN
                 </span>
-                {isLiveConnected && (
-                  <span
-                    title="Conectado ao Supabase Realtime (Sincronização em direto)"
-                    className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="hidden sm:inline">LIVE</span>
-                  </span>
-                )}
               </div>
               <p className="text-[10px] text-slate-400 hidden sm:block truncate">
                 Apostas em Futebol Moçambicano
@@ -175,8 +164,8 @@ export const Header: React.FC<HeaderProps> = ({
 
             <a
               id="header-download-project-btn"
-              href="/sofalabet-projeto-completo.tar.gz"
-              download="sofalabet-projeto-completo.tar.gz"
+              href="/zonabet-projeto-completo.tar.gz"
+              download="zonabet-projeto-completo.tar.gz"
               className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 transition-all flex items-center gap-1.5"
               title="Baixar Pacote Completo do Projeto (.tar.gz)"
             >
@@ -279,7 +268,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base">
-                    S
+                    Z
                   </div>
                   <div>
                     <span className="font-black text-white text-base tracking-tight">ZONA<span className="text-emerald-400">BET</span></span>
@@ -346,7 +335,7 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-800/80 border border-emerald-500/20 space-y-3">
                   <p className="text-xs text-slate-300">
-                    Junte-se à SOFALABET para apostar nos jogos do Moçambola e Provinciais.
+                    Junte-se à ZONABET para apostar nos jogos do Moçambola e Provinciais.
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -468,8 +457,8 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <a
                   id="mobile-drawer-download-btn"
-                  href="/sofalabet-projeto-completo.tar.gz"
-                  download="sofalabet-projeto-completo.tar.gz"
+                  href="/zonabet-projeto-completo.tar.gz"
+                  download="zonabet-projeto-completo.tar.gz"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full p-3 rounded-xl text-left text-xs font-bold flex items-center gap-3 text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors"
                 >
@@ -494,7 +483,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
               <div className="text-[10px] text-slate-500 text-center">
-                SOFALABET • Moçambique • e-Mola Exclusivo
+                ZONABET • Moçambique • e-Mola Exclusivo
               </div>
             </div>
           </div>
