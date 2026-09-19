@@ -1,14 +1,16 @@
+import { safeStorage } from './utils/storage.ts';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem('zonabet_token');
+  return safeStorage.getItem('zonabet_token');
 }
 
 export function setAuthToken(token: string | null): void {
   if (token) {
-    localStorage.setItem('zonabet_token', token);
+    safeStorage.setItem('zonabet_token', token);
   } else {
-    localStorage.removeItem('zonabet_token');
+    safeStorage.removeItem('zonabet_token');
   }
 }
 

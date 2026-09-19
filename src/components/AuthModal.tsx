@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { safeStorage } from '../utils/storage.ts';
 import { X, Lock, Mail, User, Phone, ShieldCheck, Eye, EyeOff, Sparkles, Gift } from 'lucide-react';
 
 interface AuthModalProps {
@@ -25,7 +26,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [referralCode, setReferralCode] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return params.get('ref') || params.get('codigo') || params.get('código') || localStorage.getItem('zonabet_ref') || '';
+      return params.get('ref') || params.get('codigo') || params.get('código') || safeStorage.getItem('zonabet_ref') || '';
     }
     return '';
   });
@@ -33,7 +34,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const ref = params.get('ref') || params.get('codigo') || params.get('código') || localStorage.getItem('zonabet_ref');
+      const ref = params.get('ref') || params.get('codigo') || params.get('código') || safeStorage.getItem('zonabet_ref');
       if (ref) {
         setReferralCode(ref);
       }

@@ -12,7 +12,7 @@ import {
   RiskOverview,
 } from '../types.ts';
 import { api } from '../api.ts';
-import { DEFAULT_MOZ_COMPETITIONS } from './MatchList.tsx';
+import { DEFAULT_MOZ_COMPETITIONS } from '../constants/competitions.ts';
 import { AdjustBalanceModal } from './AdjustBalanceModal.tsx';
 import { UserDetailModal } from './UserDetailModal.tsx';
 import { broadcastSettlement } from '../utils/settlementEvents.ts';

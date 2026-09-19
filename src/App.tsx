@@ -16,6 +16,7 @@ import { SystemSettings } from './types.ts';
 import { Shield, Flame, Wallet as WalletIcon, Trophy, Ticket, User as UserIcon, ArrowDownLeft, ArrowUpRight, CheckCircle2, History, AlertCircle, Bell } from 'lucide-react';
 import { subscribeToSettlement } from './utils/settlementEvents.ts';
 import { api } from './api.ts';
+import { safeStorage } from './utils/storage.ts';
 
 function MainLayout() {
   const { user, refreshUserData } = useAuth();
@@ -119,11 +120,7 @@ function MainLayout() {
       // Check referral code parameter in URL (?ref=... or ?codigo=...)
       const refParam = params.get('ref') || params.get('codigo') || params.get('código');
       if (refParam) {
-        try {
-          localStorage.setItem('zonabet_ref', refParam);
-        } catch (e) {
-          // ignore localStorage error
-        }
+        safeStorage.setItem('zonabet_ref', refParam);
         if (!user) {
           setAuthModalMode('register');
           setAuthModalOpen(true);

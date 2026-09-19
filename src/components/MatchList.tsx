@@ -7,33 +7,25 @@ import { TeamBadge } from './TeamBadge.tsx';
 import { Trophy, Clock, RefreshCw, AlertCircle, Award, Shield, Radio, Lock, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { isMatchBettingOpen, isMatchStarted } from '../utils/matchUtils.ts';
 import { subscribeToSettlement } from '../utils/settlementEvents.ts';
+import { safeStorage } from '../utils/storage.ts';
+import { DEFAULT_MOZ_COMPETITIONS } from '../constants/competitions.ts';
 
-export const DEFAULT_MOZ_COMPETITIONS: Competition[] = [
-  { id: 'comp-mocambola', name: 'Moçambola', country: 'Moçambique (Nacional)', code: 'MOC', category: 'MOCAMBOLA' },
-  { id: 'comp-prov-sofala', name: 'Campeonato Provincial de Sofala', country: 'Sofala, Moçambique', code: 'CPS', category: 'PROVINCIAL' },
-  { id: 'comp-prov-manica', name: 'Campeonato Provincial de Manica', country: 'Manica, Moçambique', code: 'CPM', category: 'PROVINCIAL' },
-  { id: 'comp-prov-nampula', name: 'Campeonato Provincial de Nampula', country: 'Nampula, Moçambique', code: 'CPN', category: 'PROVINCIAL' },
-  { id: 'comp-prov-maputo', name: 'Campeonato Provincial de Maputo', country: 'Maputo, Moçambique', code: 'CPMP', category: 'PROVINCIAL' },
-  { id: 'comp-dist-beira', name: 'Campeonato Distrital da Beira', country: 'Distrito da Beira, Sofala', code: 'CDB', category: 'DISTRITAL' },
-  { id: 'comp-dist-dondo', name: 'Campeonato Distrital do Dondo', country: 'Distrito do Dondo, Sofala', code: 'CDD', category: 'DISTRITAL' },
-  { id: 'comp-dist-nhamatanda', name: 'Campeonato Distrital de Nhamatanda', country: 'Distrito de Nhamatanda, Sofala', code: 'CDN', category: 'DISTRITAL' },
-  { id: 'comp-dist-marromeu', name: 'Campeonato Distrital de Marromeu', country: 'Distrito de Marromeu, Sofala', code: 'CDM', category: 'DISTRITAL' },
-  { id: 'comp-dist-muanza', name: 'Campeonato Distrital de Muanza', country: 'Distrito de Muanza, Sofala', code: 'CDMU', category: 'DISTRITAL' },
-  { id: 'comp-dist-cheringoma', name: 'Campeonato Distrital de Cheringoma', country: 'Distrito de Cheringoma, Sofala', code: 'CDCH', category: 'DISTRITAL' },
-];
+export { DEFAULT_MOZ_COMPETITIONS };
 
 export const MatchList: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>(() => {
     try {
-      const cached = sessionStorage.getItem('zonabet_matches_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+      const cached = safeStorage.getSessionItem('zonabet_matches_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
   });
   const [competitions, setCompetitions] = useState<Competition[]>(() => {
     try {
-      const cached = sessionStorage.getItem('zonabet_comp_cache');
+      const cached = safeStorage.getSessionItem('zonabet_comp_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -45,7 +37,7 @@ export const MatchList: React.FC = () => {
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [loading, setLoading] = useState(() => {
     try {
-      return !sessionStorage.getItem('zonabet_matches_cache');
+      return !safeStorage.getSessionItem('zonabet_matches_cache');
     } catch {
       return true;
     }
@@ -80,10 +72,10 @@ export const MatchList: React.FC = () => {
 
       try {
         if (fetchedMatches.length > 0) {
-          sessionStorage.setItem('zonabet_matches_cache', JSON.stringify(fetchedMatches));
+          safeStorage.setSessionItem('zonabet_matches_cache', JSON.stringify(fetchedMatches));
         }
         if (fetchedComps.length > 0) {
-          sessionStorage.setItem('zonabet_comp_cache', JSON.stringify(fetchedComps));
+          safeStorage.setSessionItem('zonabet_comp_cache', JSON.stringify(fetchedComps));
         }
       } catch {}
     } catch (err: any) {
